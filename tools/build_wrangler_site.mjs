@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { copyFile, mkdir, rm } from 'node:fs/promises';
+import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
+import { execSync } from 'node:child_process';
 import { dirname } from 'node:path';
 
 const output = 'dist/cloudflare';
@@ -27,5 +28,10 @@ for (const [source, destination] of files) {
   await mkdir(dirname(destination), { recursive: true });
   await copyFile(source, destination);
 }
+
+// Which build this is, shown in the game's More menu.
+let sha = process.env.GITHUB_SHA || '';
+try { sha ||= execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim(); } catch { /* not a git checkout */ }
+await writeFile(`${output}/version.json`, JSON.stringify({ sha: sha.slice(0, 7), builtAt: Date.now() }));
 
 console.log(`prepared Cloudflare static assets in ${output}`);

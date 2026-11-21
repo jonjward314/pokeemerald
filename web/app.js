@@ -438,6 +438,17 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') fetchGameRules();
 });
 
+// Which build is running (written by tools/build_wrangler_site.mjs).
+fetch('version.json', { cache: 'no-store' })
+  .then((res) => (res.ok ? res.json() : null))
+  .then((info) => {
+    const el = document.querySelector('#version');
+    if (!info || !el) return;
+    const built = new Date(info.builtAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    el.textContent = `Version ${info.sha || 'local'}, built ${built}`;
+  })
+  .catch(() => { /* no version file when served from the source tree */ });
+
 function downloadSave() {
   if (!u8) return;
   saveFlashIfChanged(true);

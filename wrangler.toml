@@ -23,6 +23,15 @@ binding = "DB"
 database_name = "emerald-saves"
 database_id = "dc6f7d14-3c60-4fca-9c94-29bb0e7c6b49"
 
+# The Cable Club link cable (worker/link.js): one Durable Object per cable.
+[[durable_objects.bindings]]
+name = "LINK"
+class_name = "LinkCable"
+
+[[migrations]]
+tag = "v1-link-cable"
+new_sqlite_classes = ["LinkCable"]
+
 [vars]
 # From Zero Trust > Settings > Custom pages, e.g. "yourfamily.cloudflareaccess.com".
 ACCESS_TEAM_DOMAIN = "sparkling-mountain-9592.cloudflareaccess.com"

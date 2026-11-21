@@ -18,6 +18,7 @@
   <main class="shell" aria-label="Emerald">
     <section class="display-panel" aria-label="Game display">
       <canvas id="screen" width="240" height="160" aria-label="Game screen"></canvas>
+      <div class="link-badge" id="link-badge" role="status" hidden></div>
     </section>
 
     <section class="pad" aria-label="Controls">
@@ -66,6 +67,18 @@
         <button id="sound-toggle" type="button">Sound: on</button>
         <button id="fullscreen" type="button">Big Picture</button>
         <input id="upload-save" type="file" accept=".sav,.srm,application/octet-stream" />
+      </div>
+
+      <div class="link-control" aria-label="Link cable">
+        <div class="speed-heading">Link cable
+          <select id="link-cable" aria-label="Which link cable">
+            <option value="1">Cable 1</option>
+            <option value="2">Cable 2</option>
+            <option value="3">Cable 3</option>
+          </select>
+        </div>
+        <div class="status" id="link-status"></div>
+        <p class="keys">To battle or trade, both players go upstairs in any Pokémon Center and talk to the Cable Club lady at the same time, on the same cable number.</p>
       </div>
 
       <p class="keys">When you save in the game, it is kept in this browser and, on the family site, in your account too. Keyboard: arrows, Z = A, X = B, Enter = Start, Shift = Select, A/S = L/R.</p>

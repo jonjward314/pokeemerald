@@ -6,7 +6,10 @@
 // it lets through; this Worker checks that signature before trusting the
 // email inside it.
 
+export { LinkCable } from './link.js';
+
 const FLASH_SIZE = 128 * 1024;
+const LINK_CABLES = 3;
 const HISTORY_KEEP = 20;
 
 export default {
@@ -30,6 +33,18 @@ async function handleApi(request, env, url) {
 
   if (url.pathname === '/api/whoami' && request.method === 'GET') {
     return json({ email });
+  }
+
+  if (url.pathname === '/api/link') {
+    // The Cable Club's link cable; see worker/link.js.
+    if (request.headers.get('Upgrade') !== 'websocket') throw new HttpError(426, 'expected a WebSocket');
+    const cable = Math.min(LINK_CABLES, Math.max(1, Number(url.searchParams.get('cable')) || 1));
+    const headers = new Headers(request.headers);
+    let name = displayName(email);
+    if (env.DEV_PLAYER_EMAIL && url.searchParams.get('name')) name = url.searchParams.get('name').slice(0, 20);
+    headers.set('X-Player-Name', name);
+    const stub = env.LINK.get(env.LINK.idFromName(`cable-${cable}`));
+    return stub.fetch(new Request(request, { headers }));
   }
 
   if (url.pathname === '/api/save') {
@@ -133,6 +148,12 @@ async function verifyAccessJwt(token, teamDomain, aud) {
 }
 
 // ---- Helpers --------------------------------------------------------------
+
+// "dad.ward@example.com" -> "Dad"
+function displayName(email) {
+  const first = email.split('@')[0].split(/[._+-]/)[0] || 'Player';
+  return (first[0].toUpperCase() + first.slice(1)).slice(0, 12);
+}
 
 class HttpError extends Error {
   constructor(status, message) {

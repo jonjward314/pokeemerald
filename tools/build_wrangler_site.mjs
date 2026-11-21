@@ -8,6 +8,7 @@ const files = [
   ['web/style.css', `${output}/web/style.css`],
   ['web/app.js', `${output}/web/app.js`],
   ['web/audio.js', `${output}/web/audio.js`],
+  ['web/link.js', `${output}/web/link.js`],
   ['web/audio-worklet.js', `${output}/web/audio-worklet.js`],
   ['build/wasm/sound.bin', `${output}/build/wasm/sound.bin`],
   ['web/manifest.webmanifest', `${output}/web/manifest.webmanifest`],

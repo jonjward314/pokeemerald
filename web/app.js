@@ -1,4 +1,5 @@
 import { createGameAudio } from './audio.js';
+import { createLinkCable } from './link.js';
 
 const WIDTH = 240;
 const HEIGHT = 160;
@@ -62,6 +63,23 @@ const automate = searchParams.get('automate') === '1';
 const MIN_SPEED = 0.1;
 const MAX_SPEED = 1000;
 const FAST_FRAME_BUDGET_MS = 16;
+
+const linkBadge = document.getElementById('link-badge');
+const linkStatusEl = document.getElementById('link-status');
+const linkCableSelect = document.getElementById('link-cable');
+const linkCable = createLinkCable({
+  onStatus: ({ text, active }) => {
+    if (linkBadge) {
+      linkBadge.textContent = text;
+      linkBadge.hidden = !active || !text;
+    }
+    if (linkStatusEl) linkStatusEl.textContent = text || 'Not plugged in. Talk to the Cable Club lady upstairs in a Pokémon Center.';
+  },
+});
+if (linkCableSelect) {
+  linkCableSelect.value = String(linkCable.cable());
+  linkCableSelect.addEventListener('change', () => linkCable.setCable(Number(linkCableSelect.value)));
+}
 
 const buttons = {
   a: 1 << 0,
@@ -1069,6 +1087,7 @@ async function boot(saveBytes) {
     new Uint8Array(memory.buffer, instance.exports.WasmSoundBlobBase() >>> 0, sound.byteLength).set(new Uint8Array(sound));
   }
   gameAudio.reset();
+  linkCable.attach(instance, memory);
   window.pokeemerald = { instance, memory, runFrames };
   if (automate) window.pokeemerald.automation = automationApi();
   refreshViews();
@@ -1111,6 +1130,7 @@ function runFrames(frameCount, keyMask = 0) {
     if (keyMask) u16[KEYINPUT >> 1] = KEY_MASK ^ keyMask;
     else writeKeys();
     instance.exports.WasmRunFrame();
+    linkCable.afterFrame();
     currentFrame++;
     stepPendingPresses();
   }

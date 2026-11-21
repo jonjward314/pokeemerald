@@ -155,6 +155,18 @@ function cleanRules(input) {
   if (Number.isFinite(Number(input.clockShiftHours))) out.clockShiftHours = int(input.clockShiftHours, -23, 23);
   if (Number.isFinite(Number(input.clockLockHour))) out.clockLockHour = int(input.clockLockHour, 0, 23);
   if (typeof input.dayNight === 'boolean') out.dayNight = input.dayNight;
+  if (input.encounters && typeof input.encounters === 'object') {
+    // { "group:num": [species ids] } -- see gWasmEncounterOverrides.
+    const encounters = {};
+    for (const [key, list] of Object.entries(input.encounters).slice(0, 64)) {
+      if (!/^\d{1,3}:\d{1,3}$/.test(key) || !Array.isArray(list)) continue;
+      const ids = [...new Set(list.map(Number))]
+        .filter((id) => Number.isInteger(id) && id >= 1 && id <= 411 && !(id >= 252 && id <= 276))
+        .slice(0, 32);
+      encounters[key] = ids; // an empty list means "the map's normal Pokémon"
+    }
+    out.encounters = encounters;
+  }
   return out;
 }
 
@@ -178,7 +190,8 @@ async function rulesFor(env, email) {
   const rows = await rulesRows(env);
   const everyone = rows.find((row) => row.email === '*')?.rules || {};
   const mine = rows.find((row) => row.email === email)?.rules || {};
-  return { ...RULE_DEFAULTS, ...everyone, ...mine };
+  const encounters = { ...(everyone.encounters || {}), ...(mine.encounters || {}) };
+  return { ...RULE_DEFAULTS, ...everyone, ...mine, encounters };
 }
 
 async function handleAdmin(request, env, url) {
@@ -205,10 +218,17 @@ async function handleAdmin(request, env, url) {
     if (request.method === 'GET') {
       const rows = await rulesRows(env);
       const { results } = await env.DB.prepare('SELECT email, saved_at FROM saves ORDER BY email').all();
+      // Names for players who share a sign-in (keys like email#id).
+      const names = {};
+      try {
+        const { results: profiles } = await env.DB.prepare('SELECT email, id, name FROM profiles').all();
+        for (const p of profiles) names[p.id === 'main' ? p.email : `${p.email}#${p.id}`] = p.name;
+      } catch { /* no profiles table yet */ }
       return json({
         defaults: RULE_DEFAULTS,
         rows,
-        players: results.map((row) => ({ email: row.email, savedAt: row.saved_at })),
+        players: results.map((row) => ({ email: row.email, savedAt: row.saved_at, name: names[row.email] || null })),
+        names,
       });
     }
     if (request.method === 'PUT') {

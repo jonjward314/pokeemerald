@@ -21,9 +21,28 @@ struct WasmRules
 
 extern struct WasmRules gWasmRules;
 
+// Per-map wild encounter overrides from the admin page: on a listed map,
+// grass and surfing encounters pick evenly from `species` (levels stay as
+// the map's own). Written by writeEncounterOverrides() in web/app.js;
+// an entry with count 0 is unused.
+#define WASM_ENCOUNTER_OVERRIDE_MAPS 64
+#define WASM_ENCOUNTER_OVERRIDE_SPECIES 32
+
+struct WasmEncounterOverride
+{
+    /*0x00*/ u8 mapGroup;
+    /*0x01*/ u8 mapNum;
+    /*0x02*/ u8 count;
+    /*0x03*/ u8 padding;
+    /*0x04*/ u16 species[WASM_ENCOUNTER_OVERRIDE_SPECIES];
+}; // 0x44 bytes
+
+extern struct WasmEncounterOverride gWasmEncounterOverrides[WASM_ENCOUNTER_OVERRIDE_MAPS];
+
 u32 WasmApplyExpRule(u32 exp);
 u32 WasmApplyMoneyRule(u32 money);
 u32 WasmApplyEncounterRule(u32 encounterRate);
+u16 WasmOverrideWildSpecies(u16 species);
 bool8 WasmRtcAvailable(void);
 void WasmRtcFill(struct SiiRtcInfo *rtc);
 u8 WasmDayNightPhase(void);

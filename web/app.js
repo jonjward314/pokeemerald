@@ -402,7 +402,28 @@ function writeGameRules() {
   view.setUint16(address + 0x06, gameRules.moneyPercent, true);
   view.setUint16(address + 0x08, gameRules.encounterPercent, true);
   view.setUint8(address + 0x0a, gameRules.dayNight ? 1 : 0);
+  writeEncounterOverrides(view);
   writeGameClock();
+}
+
+// Route overrides from the admin page: { "group:num": [species ids] } into
+// gWasmEncounterOverrides (include/wasm_rules.h: 64 entries of 0x44 bytes).
+function writeEncounterOverrides(view) {
+  const base = instance.exports.gWasmEncounterOverrides?.value;
+  if (base === undefined) return;
+  new Uint8Array(memory.buffer, base, 64 * 0x44).fill(0);
+  let slot = 0;
+  for (const [key, list] of Object.entries(gameRules.encounters || {})) {
+    const [group, num] = key.split(':').map(Number);
+    const ids = (list || []).slice(0, 32);
+    if (!ids.length || slot >= 64 || !Number.isInteger(group) || !Number.isInteger(num)) continue;
+    const entry = base + slot * 0x44;
+    view.setUint8(entry, group);
+    view.setUint8(entry + 1, num);
+    view.setUint8(entry + 2, ids.length);
+    ids.forEach((id, i) => view.setUint16(entry + 4 + i * 2, id, true));
+    slot++;
+  }
 }
 
 function gameClockSeconds() {

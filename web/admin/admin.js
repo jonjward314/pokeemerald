@@ -85,6 +85,14 @@ function markPresets() {
   }
 }
 
+let names = {};
+
+// "Ava (family@example.com)" for players on a shared sign-in.
+function playerLabel(key) {
+  const email = key.split('#')[0];
+  return names[key] ? `${names[key]} (${email})` : key;
+}
+
 function playerEmails() {
   const emails = new Set(players.map((p) => p.email));
   for (const email of rows.keys()) if (email !== '*') emails.add(email);
@@ -95,7 +103,7 @@ function renderScopes(selected = scopeSelect.value || '*') {
   scopeSelect.replaceChildren(new Option('Everyone', '*'));
   for (const email of playerEmails()) {
     const tag = rows.has(email) ? ' (own rules)' : '';
-    scopeSelect.add(new Option(`${email}${tag}`, email));
+    scopeSelect.add(new Option(`${playerLabel(email)}${tag}`, email));
   }
   scopeSelect.value = [...scopeSelect.options].some((o) => o.value === selected) ? selected : '*';
 }
@@ -155,14 +163,18 @@ async function load() {
   defaults = data.defaults;
   rows = new Map(data.rows.map((row) => [row.email, row.rules]));
   players = data.players;
+  names = data.names || {};
   renderScopes();
   renderForm();
+  renderEncounterScopes();
 }
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   const email = scopeSelect.value;
   const rules = collectRules();
+  const encounters = rows.get(email)?.encounters;
+  if (encounters && Object.keys(encounters).length) rules.encounters = encounters;
   setStatus('Saving…');
   try {
     if (email !== '*' && Object.keys(rules).length === 0) {
@@ -274,6 +286,167 @@ document.querySelector('#picker-form').addEventListener('submit', async (event) 
     setPickerStatus(`Could not add: ${error.message}`, true);
   }
 });
+
+// ---- Route encounters ----
+// Per player (or everyone), per map: grass and surfing pick evenly from the
+// checked Pokémon. Stored as rules.encounters { "group:num": [species ids] }.
+
+const MAX_ENCOUNTER_SPECIES = 32;
+const encScope = document.querySelector('#enc-scope');
+const encMap = document.querySelector('#enc-map');
+const encNormal = document.querySelector('#enc-normal');
+const encState = document.querySelector('#enc-state');
+const encSearch = document.querySelector('#enc-search');
+const encGrid = document.querySelector('#enc-species');
+const encPicked = document.querySelector('#enc-picked');
+const encCount = document.querySelector('#enc-count');
+const encStatus = document.querySelector('#enc-status');
+const encFollow = document.querySelector('#enc-follow');
+let gameData = { maps: [], species: [] };
+let speciesName = new Map();
+let checked = new Set();
+
+function setEncStatus(text, isError = false) {
+  encStatus.textContent = text;
+  encStatus.classList.toggle('error', isError);
+}
+
+function renderEncounterScopes() {
+  const selected = encScope.value || '*';
+  encScope.replaceChildren(new Option('Everyone', '*'));
+  for (const email of playerEmails()) encScope.add(new Option(playerLabel(email), email));
+  encScope.value = [...encScope.options].some((o) => o.value === selected) ? selected : '*';
+  renderEncounterMaps();
+}
+
+function overridesFor(scope) {
+  return rows.get(scope)?.encounters || {};
+}
+
+function renderEncounterMaps() {
+  const selected = encMap.value;
+  const mine = overridesFor(encScope.value);
+  const everyone = overridesFor('*');
+  encMap.replaceChildren();
+  for (const map of gameData.maps) {
+    const mark = map.key in mine ? ' ★' : (encScope.value !== '*' && everyone[map.key]?.length ? ' ☆' : '');
+    encMap.add(new Option(`${map.name}${mark}`, map.key));
+  }
+  if (selected && [...encMap.options].some((o) => o.value === selected)) encMap.value = selected;
+  else encMap.value = gameData.maps.find((m) => m.map === 'MAP_ROUTE101')?.key || encMap.options[0]?.value;
+  loadEncounterChoice();
+}
+
+function loadEncounterChoice() {
+  const scope = encScope.value;
+  const key = encMap.value;
+  const map = gameData.maps.find((m) => m.key === key);
+  if (!map) return;
+  const normal = [...new Set([...map.land, ...map.water])].map((id) => speciesName.get(id)).filter(Boolean);
+  encNormal.textContent = `Normally here: ${normal.join(', ')}.`;
+  const own = overridesFor(scope)[key];
+  const everyone = overridesFor('*')[key];
+  let list;
+  if (own !== undefined) {
+    list = own;
+    const who = scope === '*' ? 'Everyone has' : 'This player has';
+    encState.textContent = own.length ? `${who} a custom list for this area.` : 'This player gets the normal Pokémon here.';
+  } else if (scope !== '*' && everyone?.length) {
+    list = everyone;
+    encState.textContent = 'Following the Everyone list for this area.';
+  } else {
+    list = [];
+    encState.textContent = 'Normal Pokémon. Check some below to replace them.';
+  }
+  checked = new Set(list);
+  encFollow.hidden = scope === '*' || own === undefined;
+  setEncStatus('');
+  renderSpeciesGrid();
+}
+
+function renderSpeciesGrid() {
+  const query = encSearch.value.trim().toLowerCase();
+  encGrid.replaceChildren();
+  for (const sp of gameData.species) {
+    if (query && !sp.name.toLowerCase().includes(query) && !checked.has(sp.id)) continue;
+    const label = document.createElement('label');
+    label.className = 'species';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = checked.has(sp.id);
+    box.addEventListener('change', () => {
+      if (box.checked && checked.size >= MAX_ENCOUNTER_SPECIES) {
+        box.checked = false;
+        setEncStatus(`Up to ${MAX_ENCOUNTER_SPECIES} Pokémon per area.`, true);
+        return;
+      }
+      if (box.checked) checked.add(sp.id); else checked.delete(sp.id);
+      renderPicked();
+    });
+    label.append(box, document.createTextNode(sp.name));
+    encGrid.append(label);
+  }
+  renderPicked();
+}
+
+function renderPicked() {
+  encCount.textContent = checked.size
+    ? `${checked.size} picked, each ${Math.round(1000 / checked.size) / 10}% of encounters`
+    : 'None picked';
+  encPicked.replaceChildren(...[...checked].map((id) => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip';
+    chip.textContent = `${speciesName.get(id)} ✕`;
+    chip.addEventListener('click', () => { checked.delete(id); renderSpeciesGrid(); });
+    return chip;
+  }));
+}
+
+async function saveEncounters(list) {
+  const scope = encScope.value;
+  const key = encMap.value;
+  const rules = { ...(rows.get(scope) || {}) };
+  const encounters = { ...(rules.encounters || {}) };
+  if (list === null) delete encounters[key]; else encounters[key] = list;
+  rules.encounters = encounters;
+  setEncStatus('Saving…');
+  try {
+    const saved = await api('../api/admin/rules', { method: 'PUT', body: JSON.stringify({ email: scope, rules }), headers: { 'Content-Type': 'application/json' } });
+    rows.set(scope, saved.rules);
+    renderScopes();
+    renderEncounterMaps();
+    setEncStatus(`Saved at ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. Games pick it up within 5 minutes or on reload.`);
+  } catch (error) {
+    setEncStatus(`Could not save: ${error.message}`, true);
+  }
+}
+
+document.querySelector('#enc-save').addEventListener('click', () => {
+  if (!checked.size) {
+    setEncStatus('Check at least one Pokémon, or use "Normal Pokémon".', true);
+    return;
+  }
+  saveEncounters([...checked]);
+});
+document.querySelector('#enc-normal-button').addEventListener('click', () => {
+  // Everyone: drop the override. A player: pin the normal Pokémon even if Everyone has a list.
+  const everyoneHasList = overridesFor('*')[encMap.value]?.length;
+  saveEncounters(encScope.value === '*' || !everyoneHasList ? null : []);
+});
+encFollow.addEventListener('click', () => saveEncounters(null));
+encScope.addEventListener('change', renderEncounterMaps);
+encMap.addEventListener('change', loadEncounterChoice);
+encSearch.addEventListener('input', renderSpeciesGrid);
+
+fetch('game-data.json', { cache: 'no-cache' })
+  .then((res) => res.json())
+  .then((data) => {
+    gameData = data;
+    speciesName = new Map(data.species.map((sp) => [sp.id, sp.name]));
+    renderEncounterScopes();
+  })
+  .catch((error) => setEncStatus(`Could not load the game data: ${error.message}`, true));
 
 loadPickers().catch((error) => setPickerStatus(`Could not load logins: ${error.message}`, true));
 buildStaticControls();

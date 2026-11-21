@@ -29,6 +29,9 @@ for (const [source, destination] of files) {
   await copyFile(source, destination);
 }
 
+// Routes and species for the admin page's encounter editor.
+execSync(`node tools/generate_admin_data.mjs ${output}/admin/game-data.json`, { stdio: 'inherit' });
+
 // Which build this is, shown in the game's More menu.
 let sha = process.env.GITHUB_SHA || '';
 try { sha ||= execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim(); } catch { /* not a git checkout */ }

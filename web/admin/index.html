@@ -19,6 +19,7 @@
 
   <nav class="tabs" aria-label="Sections">
     <button type="button" class="tab active" data-tab="rules">Game rules</button>
+    <button type="button" class="tab" data-tab="encounters">Wild Pokémon</button>
     <button type="button" class="tab" data-tab="logins">Logins</button>
     <button type="button" class="tab" data-tab="saves" disabled title="Coming next">Save editor</button>
     <button type="button" class="tab" data-tab="trainers" disabled title="Coming next">Trainers</button>
@@ -91,6 +92,33 @@
         <p class="hint">A running game picks up new rules within 5 minutes, or straight away when it is reopened or brought back to the front.</p>
       </form>
     </section>
+    <section id="encounters" class="panel" hidden>
+      <div class="card">
+        <label class="field-label" for="enc-scope">Player</label>
+        <select id="enc-scope" class="wide"></select>
+        <label class="field-label spaced" for="enc-map">Route or area</label>
+        <select id="enc-map" class="wide"></select>
+        <p class="hint">★ has its own list, ☆ follows the Everyone list.</p>
+        <p class="hint" id="enc-normal"></p>
+        <p class="enc-state" id="enc-state"></p>
+      </div>
+      <div class="card">
+        <div class="enc-toolbar">
+          <input type="search" id="enc-search" placeholder="Search Pokémon" autocomplete="off" />
+          <span class="hint" id="enc-count"></span>
+        </div>
+        <div class="chips" id="enc-picked"></div>
+        <div class="species-grid" id="enc-species"></div>
+        <div class="actions">
+          <button type="button" class="primary" id="enc-save">Save for this area</button>
+          <button type="button" class="ghost" id="enc-normal-button">Normal Pokémon</button>
+          <button type="button" class="ghost" id="enc-follow" hidden>Follow Everyone</button>
+        </div>
+        <p class="status" id="enc-status" role="status"></p>
+        <p class="hint">Grass, caves and surfing in this area pick evenly from the checked Pokémon, at the area's usual levels. Fishing and Rock Smash stay as they are. Up to 32 per area.</p>
+      </div>
+    </section>
+
     <section id="logins" class="panel" hidden>
       <div class="card">
         <h2>Shared logins</h2>

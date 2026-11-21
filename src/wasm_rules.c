@@ -7,6 +7,7 @@
 #include "global.h"
 #include "main.h"
 #include "overworld.h"
+#include "random.h"
 #include "rtc.h"
 #include "wasm_rules.h"
 
@@ -18,6 +19,26 @@ struct WasmRules gWasmRules = {
     .dayNight = 0,
     .hostSeconds = 0,
 };
+
+struct WasmEncounterOverride gWasmEncounterOverrides[WASM_ENCOUNTER_OVERRIDE_MAPS];
+
+u16 WasmOverrideWildSpecies(u16 species)
+{
+    s32 i;
+    s8 group = gSaveBlock1Ptr->location.mapGroup;
+    s8 num = gSaveBlock1Ptr->location.mapNum;
+
+    for (i = 0; i < WASM_ENCOUNTER_OVERRIDE_MAPS; i++)
+    {
+        const struct WasmEncounterOverride *entry = &gWasmEncounterOverrides[i];
+        if (entry->count == 0 || entry->mapGroup != (u8)group || entry->mapNum != (u8)num)
+            continue;
+        if (entry->count > WASM_ENCOUNTER_OVERRIDE_SPECIES)
+            return species;
+        return entry->species[Random() % entry->count];
+    }
+    return species;
+}
 
 static u32 Scale(u32 value, u16 percent)
 {

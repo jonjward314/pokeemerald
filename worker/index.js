@@ -6,7 +6,10 @@
 // it lets through; this Worker checks that signature before trusting the
 // email inside it.
 
+export { LinkCable } from './link.js';
+
 const FLASH_SIZE = 128 * 1024;
+const LINK_CABLES = 3;
 const HISTORY_KEEP = 20;
 
 export default {
@@ -44,18 +47,43 @@ async function handleApi(request, env, url) {
     return json({ email, admin: await isAdmin(email, env), picker: await isPicker(env, email) });
   }
 
-  if (url.pathname === '/api/rules' && request.method === 'GET') {
-    return json(await rulesFor(env, email));
-  }
-
   if (url.pathname.startsWith('/api/admin/')) {
     if (!(await isAdmin(email, env))) throw new HttpError(403, 'admin only');
     return handleAdmin(request, env, url);
   }
 
+  if (url.pathname === '/api/profiles') {
+    if (request.method === 'GET') {
+      const picker = await isPicker(env, email);
+      return json({ picker, profiles: picker ? await listProfiles(env, email) : (await listProfiles(env, email)).slice(0, 1) });
+    }
+    if (request.method === 'POST') return addProfile(request, env, email);
+    throw new HttpError(405, 'method not allowed');
+  }
+
+  // Everything below belongs to one player: the signed-in account, or one of
+  // the extra players ("Who's playing?") made under it.
+  const profile = await requestProfile(request, env, email, url);
+
+  if (url.pathname === '/api/rules' && request.method === 'GET') {
+    return json(await rulesFor(env, profile.key));
+  }
+
+  if (url.pathname === '/api/link') {
+    // The Cable Club's link cable; see worker/link.js.
+    if (request.headers.get('Upgrade') !== 'websocket') throw new HttpError(426, 'expected a WebSocket');
+    const cable = Math.min(LINK_CABLES, Math.max(1, Number(url.searchParams.get('cable')) || 1));
+    const headers = new Headers(request.headers);
+    let name = profile.name;
+    if (env.DEV_PLAYER_EMAIL && url.searchParams.get('name')) name = url.searchParams.get('name').slice(0, 20);
+    headers.set('X-Player-Name', name);
+    const stub = env.LINK.get(env.LINK.idFromName(`cable-${cable}`));
+    return stub.fetch(new Request(request, { headers }));
+  }
+
   if (url.pathname === '/api/save') {
-    if (request.method === 'GET') return getSave(env, email);
-    if (request.method === 'PUT') return putSave(request, env, email);
+    if (request.method === 'GET') return getSave(env, profile.key);
+    if (request.method === 'PUT') return putSave(request, env, profile.key);
     throw new HttpError(405, 'method not allowed');
   }
 
@@ -225,6 +253,70 @@ function safeJson(text) {
   try { return JSON.parse(text); } catch { return {}; }
 }
 
+// ---- Players on one account ("Who's playing?") ----------------------------
+//
+// Kids often share one phone and one family sign-in, so an account can hold
+// up to MAX_PROFILES players, each with their own save. Only sign-ins the
+// admin marks as "picker" accounts (a shared family login) get the picker;
+// everyone else goes straight to their own game. The account's own
+// player has id "main" and keeps its saves under the plain email (so saves
+// made before profiles existed stay put); the others are stored under
+// "email#id". Everything keyed by player (saves, save history) uses that key.
+
+const MAX_PROFILES = 8;
+let profilesTableReady = false;
+
+async function ensureProfilesTable(env) {
+  if (profilesTableReady) return;
+  await env.DB.prepare(
+    'CREATE TABLE IF NOT EXISTS profiles (email TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL, '
+    + 'created_at INTEGER NOT NULL, PRIMARY KEY (email, id))',
+  ).run();
+  profilesTableReady = true;
+}
+
+async function listProfiles(env, email) {
+  await ensureProfilesTable(env);
+  const { results } = await env.DB.prepare('SELECT id, name FROM profiles WHERE email = ? ORDER BY created_at').bind(email).all();
+  const main = results.find((row) => row.id === 'main');
+  return [
+    { id: 'main', name: main ? main.name : displayName(email) },
+    ...results.filter((row) => row.id !== 'main').map((row) => ({ id: row.id, name: row.name })),
+  ];
+}
+
+function cleanName(value) {
+  const name = String(value || '').replace(/[^\p{L}\p{N} '.-]/gu, '').trim().slice(0, 12);
+  if (!name) throw new HttpError(400, 'a name is needed');
+  return name;
+}
+
+async function addProfile(request, env, email) {
+  if (!(await isPicker(env, email))) throw new HttpError(403, 'this sign-in has no player picker');
+  const body = await request.json().catch(() => ({}));
+  const name = cleanName(body.name);
+  const profiles = await listProfiles(env, email);
+  if (profiles.length >= MAX_PROFILES) throw new HttpError(400, `up to ${MAX_PROFILES} players per sign-in`);
+  if (profiles.some((p) => p.name.toLowerCase() === name.toLowerCase())) throw new HttpError(409, 'that name is taken');
+  const id = [...crypto.getRandomValues(new Uint8Array(4))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  await env.DB.prepare('INSERT INTO profiles (email, id, name, created_at) VALUES (?, ?, ?, ?)').bind(email, id, name, Date.now()).run();
+  return json({ profile: { id, name } }, 201);
+}
+
+// The player a request is for: X-Profile header, or ?profile= (WebSockets
+// can't send headers). Missing means the account's own player.
+async function requestProfile(request, env, email, url) {
+  const id = request.headers.get('X-Profile') || url.searchParams.get('profile') || 'main';
+  const profiles = id === 'main' || await isPicker(env, email) ? await listProfiles(env, email) : [];
+  const profile = profiles.find((p) => p.id === id);
+  if (!profile) throw new HttpError(404, 'no such player on this sign-in');
+  return { ...profile, key: profileKey(email, profile.id) };
+}
+
+function profileKey(email, id) {
+  return id === 'main' ? email : `${email}#${id}`;
+}
+
 // ---- Identity -------------------------------------------------------------
 
 async function playerEmail(request, env) {
@@ -288,6 +380,12 @@ async function verifyAccessJwt(token, teamDomain, aud) {
 }
 
 // ---- Helpers --------------------------------------------------------------
+
+// "dad.ward@example.com" -> "Dad"
+function displayName(email) {
+  const first = email.split('@')[0].split(/[._+-]/)[0] || 'Player';
+  return (first[0].toUpperCase() + first.slice(1)).slice(0, 12);
+}
 
 class HttpError extends Error {
   constructor(status, message) {

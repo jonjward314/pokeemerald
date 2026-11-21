@@ -2091,8 +2091,18 @@ static void DequeueRecvCmds(u16 (*recvCmds)[CMD_LENGTH])
 
 // link_intr.c
 
+#if WASM
+void WasmLinkVSync(void);
+#endif
+
 void LinkVSync(void)
 {
+#if WASM
+    // No serial port in the browser: src/wasm_link.c carries the cable's
+    // blocks over the internet instead.
+    WasmLinkVSync();
+    return;
+#endif
     if (gLink.isMaster)
     {
         switch (gLink.state)

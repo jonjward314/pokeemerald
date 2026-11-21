@@ -18,6 +18,7 @@
   <main class="shell" aria-label="Emerald">
     <section class="display-panel" aria-label="Game display">
       <canvas id="screen" width="240" height="160" aria-label="Game screen"></canvas>
+      <div class="link-badge" id="link-badge" role="status" hidden></div>
       <svg width="0" height="0" aria-hidden="true" style="position:absolute">
         <filter id="tint-evening" color-interpolation-filters="sRGB">
           <feColorMatrix type="matrix" values="1 0.08 0 0 0.02  0 0.78 0 0 0  0 0 0.62 0 0  0 0 0 1 0" />
@@ -76,6 +77,23 @@
         <input id="upload-save" type="file" accept=".sav,.srm,application/octet-stream" />
       </div>
 
+      <div class="player-control" aria-label="Player" hidden>
+        <div class="speed-heading">Playing as <output id="player-name"></output></div>
+        <button type="button" id="switch-player">Switch player</button>
+      </div>
+
+      <div class="link-control" aria-label="Link cable">
+        <div class="speed-heading">Link cable
+          <select id="link-cable" aria-label="Which link cable">
+            <option value="1">Cable 1</option>
+            <option value="2">Cable 2</option>
+            <option value="3">Cable 3</option>
+          </select>
+        </div>
+        <div class="status" id="link-status"></div>
+        <p class="keys">To battle or trade, both players go upstairs in any Pokémon Center and talk to the Cable Club lady at the same time, on the same cable number.</p>
+      </div>
+
       <div class="layout-control" aria-label="Layout">
         <div class="speed-heading">Layout</div>
         <div class="layout-buttons">
@@ -94,6 +112,18 @@
       <p class="keys">When you save in the game, it is kept in this browser and, on the family site, in your account too.</p>
     </details>
   </main>
+  <div class="player-picker" id="player-picker" role="dialog" aria-modal="true" aria-labelledby="player-picker-title" hidden>
+    <div class="player-card">
+      <h1 id="player-picker-title">Who's playing?</h1>
+      <div class="player-list"></div>
+      <form class="player-add">
+        <input type="text" maxlength="12" placeholder="New player's name" aria-label="New player's name" autocomplete="off" />
+        <button type="submit">Add</button>
+      </form>
+      <p class="player-error" role="alert"></p>
+      <p class="player-note">Each player has their own game and save.</p>
+    </div>
+  </div>
   <script type="module" src="web/app.js"></script>
 </body>
 </html>

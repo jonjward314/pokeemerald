@@ -1,4 +1,6 @@
--- One row per player: their latest save.
+-- One row per player: their latest save. "email" is the player key: the
+-- sign-in email for the account's own player, or "email#id" for an extra
+-- player made under it (see profiles).
 CREATE TABLE IF NOT EXISTS saves (
   email TEXT PRIMARY KEY,
   data BLOB NOT NULL,
@@ -14,6 +16,17 @@ CREATE TABLE IF NOT EXISTS save_history (
   saved_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS save_history_email ON save_history (email, id);
+
+-- Extra players on one sign-in ("Who's playing?"), for kids sharing a phone.
+-- The Worker also creates this table on first use.
+CREATE TABLE IF NOT EXISTS profiles (
+  email TEXT NOT NULL,
+  id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (email, id)
+);
+
 
 -- House rules from the admin page: '*' for everyone, or one player's email.
 -- (The Worker also creates this table itself if it is missing.)

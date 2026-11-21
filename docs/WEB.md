@@ -145,6 +145,49 @@ memory at start. Sound starts on the first tap or key press, because browsers
 don't allow pages to make noise before that. **More → Sound** turns it off.
 It is muted at faster speeds.
 
+## Battles and trades with family
+
+On the Option B site, the Cable Club in every Pokémon Center works over the
+internet, as if the phones were joined by a link cable. Both players go
+upstairs in any Pokémon Center (it opens once you have the Pokédex), talk to
+the lady at the right-hand counter at about the same time, and pick the same
+thing (Trade Center or Colosseum). The first player to talk is the leader and
+presses A to start the link. Up to four players can share a cable; **More →
+Link cable** picks cable 1, 2 or 3, so two pairs can play at once. A note over
+the screen shows who is plugged in.
+
+How it works: `src/wasm_link.c` takes the game's link-cable blocks (one per
+frame, the same as the real cable) and `web/link.js` sends them over a
+WebSocket to `/api/link`. There a Durable Object (`worker/link.js`) acts as the
+cable: it puts one block from each player into a "round" and sends every round
+to every player, so all games see the same data in the same order, as on the
+GBA. Everything else (trading, battles, saving after a trade) is the game's
+own code. `wrangler deploy` creates the Durable Object the first time, from
+the `[[migrations]]` entry in `wrangler.toml`; it runs on the Workers Free
+plan.
+
+To try it locally, run `npx wrangler dev` with `DEV_PLAYER_EMAIL` set in
+`.dev.vars`, and open two windows with `?player=Dad` and `?player=Kid` so the
+names differ.
+
+## Several players on one sign-in
+
+Kids sharing one phone can share one family sign-in. On the admin page
+(`/admin`), mark that email as a *picker* login. Each time the game opens on
+it, it asks **Who's playing?**. Tap a name, or type a new one and tap **Add**
+(up to 8). Every player has their own game, save and house rules, and
+their own name in the Cable Club. **More → Switch player** goes back to the
+picker. Ordinary sign-ins (like a parent's own email) skip the picker and go
+straight to their game.
+
+On the server, the login's own player keeps its saves under the plain email.
+Each extra player is stored under `email#id`, and the `profiles` table holds
+their names. The page sends the chosen player as an `X-Profile` header (or
+`?profile=` on the link WebSocket).
+
 ## Known gaps
 
-- Link features (trading, link battles, Union Room) have no browser connection yet.
+- The Union Room, wireless games and Record Corner over the wireless adapter
+  are not connected (the game behaves as if no wireless adapter is plugged in).
+  Cable Club trades and single battles are tested; double and multi battles
+  and the Record Corner use the same link and should work, but are untested.

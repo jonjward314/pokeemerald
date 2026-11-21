@@ -11,7 +11,7 @@ hardware.
 On Ubuntu 24.04 (other systems: same tools, different install command):
 
 ```sh
-sudo apt-get install -y build-essential libpng-dev clang-20 lld-20 nodejs
+sudo apt-get install -y build-essential libpng-dev clang-20 lld-20 binutils-arm-none-eabi nodejs
 curl -LsSf https://astral.sh/uv/install.sh | sh   # Python runner used by the asset scripts
 make -j4 tools
 make -j4 wasm            # writes build/wasm/pokeemerald.wasm
@@ -97,8 +97,17 @@ whichever copy is newer. **More** shows whether the account copy is up to
 date. **More → Back up save** downloads a copy; **Restore save** loads one,
 including a `.sav` from a real cartridge or an emulator.
 
+## Sound
+
+The game's own sound engine runs in the browser: music, sound effects and
+Pokémon cries are mixed in C (a portable rewrite of the GBA engine, from the
+pokeemerald-multiplatform project) and played through Web Audio. The song and
+instrument data are assembled into `build/wasm/sound.bin` (which is why the
+build needs `binutils-arm-none-eabi`), and the page loads it into the game's
+memory at start. Sound starts on the first tap or key press, because browsers
+don't allow pages to make noise before that. **More → Sound** turns it off.
+It is muted at faster speeds.
+
 ## Known gaps
 
-- No sound yet. The port tracks music and sound effects so timing is right,
-  but nothing is played through the speaker.
 - Link features (trading, link battles, Union Room) have no browser connection yet.

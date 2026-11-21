@@ -264,7 +264,6 @@ button, summary, label {
 .speed-buttons button.active,
 .utility-controls button.active { background: var(--mint); color: var(--ink); }
 
-#fullscreen { grid-column: 1 / -1; }
 #upload-save { display: none; }
 
 .keys {

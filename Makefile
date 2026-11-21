@@ -272,7 +272,7 @@ ifeq ($(COMPARE),1)
 	@$(SHA1) rom.sha1
 endif
 
-wasm: generated wasm-assets $(WASM)
+wasm: generated wasm-assets $(WASM) $(WASM_SOUND_BIN)
 
 native-raylib: $(NATIVE_RAYLIB)
 
@@ -294,7 +294,31 @@ $(WASM_SOUND_HEADER): tools/generate_wasm_sound.py sound/song_table.inc sound/so
 
 $(WASM_C_OBJS): | generated wasm-assets
 
-$(WASM_OBJ_DIR)/m4a.o: $(WASM_SOUND_HEADER)
+# Sound data (songs, instruments, samples, cries) is assembled with the GBA
+# assembler and linked on its own at a fixed address, then loaded into the
+# wasm memory at that address by web/app.js. The C code finds the tables it
+# needs through the addresses in wasm_sound_syms.h.
+WASM_SOUND_LD := tools/wasm_sound.ld
+WASM_SOUND_DATA_OBJ := $(WASM_BUILD_DIR)/sound/sound_data.o
+WASM_SOUND_ELF := $(WASM_BUILD_DIR)/sound.elf
+WASM_SOUND_BIN := $(WASM_BUILD_DIR)/sound.bin
+WASM_SOUND_SYMS := $(WASM_BUILD_DIR)/wasm_sound_syms.h
+WASM_SOUND_SAMPLES := $(filter %.bin,$(shell grep -ho '\.incbin "[^"]*"' sound/*.inc sound/voicegroups/*.inc 2>/dev/null | sed 's/.incbin "//;s/"//' | sort -u))
+
+$(WASM_SOUND_DATA_OBJ): data/wasm/sound_data.s $(WASM_SOUND_SAMPLES) | generated
+	@mkdir -p $(dir $@)
+	$(PREPROC) $< charmap.txt | $(CPP) $(INCLUDE_SCANINC_ARGS) - | $(PREPROC) -ie $< charmap.txt | $(AS) $(ASFLAGS) -o $@
+
+$(WASM_SOUND_ELF): $(WASM_SOUND_LD) $(WASM_SOUND_DATA_OBJ) $(MID_OBJS)
+	$(LD) -T $(WASM_SOUND_LD) -o $@ $(WASM_SOUND_DATA_OBJ) $(MID_OBJS)
+
+$(WASM_SOUND_BIN): $(WASM_SOUND_ELF)
+	$(OBJCOPY) -O binary $< $@
+
+$(WASM_SOUND_SYMS): $(WASM_SOUND_ELF) tools/wasm_sound_syms.py
+	python3 tools/wasm_sound_syms.py $(PREFIX)nm $< $@
+
+$(WASM_OBJ_DIR)/m4a.o $(WASM_OBJ_DIR)/m4a_tables.o $(WASM_OBJ_DIR)/sound.o $(WASM_OBJ_DIR)/wasm_audio.o: $(WASM_SOUND_SYMS)
 
 $(WASM): Makefile $(WASM_C_OBJS) $(WASM_DATA_OBJS)
 	@test -n "$(WASM_LD)" || { echo "wasm-ld not found; set WASM_LD=/path/to/wasm-ld"; exit 1; }

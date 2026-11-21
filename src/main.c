@@ -105,10 +105,10 @@ void AgbMain(void)
     REG_WAITCNT = WAITCNT_PREFETCH_ENABLE | WAITCNT_WS0_S_1 | WAITCNT_WS0_N_3;
     InitKeys();
     InitIntrHandlers();
+    m4aSoundInit();
 #if WASM
     gFlashMemoryPresent = TRUE;
 #else
-    m4aSoundInit();
     EnableVCountIntrAtLine150();
     InitRFU();
     RtcInit();
@@ -191,6 +191,9 @@ void WasmRunFrame(void)
     PlayTimeCounter_Update();
     MapMusicMain();
 #if WASM
+    // On the GBA, line 150's V-count interrupt hands the last mixed audio to
+    // the sound hardware just before V-blank mixes the next frame.
+    m4aSoundVSync();
     VBlankIntr();
 #else
     WaitForVBlank();

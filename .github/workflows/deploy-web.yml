@@ -25,7 +25,7 @@ jobs:
       - name: Install compilers
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-20 lld-20 libpng-dev
+          sudo apt-get install -y clang-20 lld-20 libpng-dev binutils-arm-none-eabi
 
       - uses: astral-sh/setup-uv@v6
 

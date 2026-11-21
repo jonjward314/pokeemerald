@@ -1,3 +1,5 @@
+import { createGameAudio } from './audio.js';
+
 const WIDTH = 240;
 const HEIGHT = 160;
 const REG = 0x04000000;
@@ -89,6 +91,17 @@ const shell = document.querySelector('.shell');
 const downloadSaveButton = document.querySelector('#download-save');
 const uploadSaveInput = document.querySelector('#upload-save');
 const ctx = canvas.getContext('2d');
+const soundButton = document.querySelector('#sound-toggle');
+const gameAudio = createGameAudio({ onStateChange: updateSoundButton });
+if (!automate) gameAudio.unlockOnFirstGesture();
+
+function updateSoundButton() {
+  if (!soundButton) return;
+  soundButton.textContent = gameAudio.enabled ? 'Sound: on' : 'Sound: off';
+  soundButton.classList.toggle('active', gameAudio.enabled);
+}
+soundButton?.addEventListener('click', () => gameAudio.setEnabled(!gameAudio.enabled));
+updateSoundButton();
 let image;
 const pressed = new Set();
 const pendingPresses = new Map();
@@ -621,9 +634,13 @@ function normalizeSaveForCurrentBuild(bytes) {
 }
 
 async function wasmModule() {
-  wasmModulePromise ??= fetch('build/wasm/pokeemerald.wasm', { cache: 'no-cache' })
-    .then((res) => res.arrayBuffer())
-    .then(async (bytes) => ({ bytes, module: await WebAssembly.compile(bytes) }));
+  wasmModulePromise ??= Promise.all([
+    fetch('build/wasm/pokeemerald.wasm', { cache: 'no-cache' }).then((res) => res.arrayBuffer()),
+    // Songs, instruments and cries; the game finds them at a fixed address.
+    fetch('build/wasm/sound.bin', { cache: 'no-cache' })
+      .then((res) => (res.ok ? res.arrayBuffer() : null))
+      .catch(() => null),
+  ]).then(async ([bytes, sound]) => ({ bytes, sound, module: await WebAssembly.compile(bytes) }));
   return wasmModulePromise;
 }
 
@@ -1045,9 +1062,13 @@ function fpsStatus(displayFps, gameFps) {
 
 async function boot(saveBytes) {
   const thisBootId = ++bootId;
-  const { bytes, module } = await wasmModule();
+  const { bytes, sound, module } = await wasmModule();
   instance = await WebAssembly.instantiate(module, importsFor(module));
   memory = instance.exports.memory;
+  if (sound && instance.exports.WasmSoundBlobBase) {
+    new Uint8Array(memory.buffer, instance.exports.WasmSoundBlobBase() >>> 0, sound.byteLength).set(new Uint8Array(sound));
+  }
+  gameAudio.reset();
   window.pokeemerald = { instance, memory, runFrames };
   if (automate) window.pokeemerald.automation = automationApi();
   refreshViews();
@@ -1268,6 +1289,7 @@ function tick(thisBootId, now) {
     const elapsedMs = Math.min(now - lastTick, 100);
     lastTick = now;
     const frames = runFramesForTick(elapsedMs);
+    gameAudio.pump(instance, memory, speed);
     render();
     updateFps(frames);
     requestAnimationFrame((nextNow) => tick(thisBootId, nextNow));

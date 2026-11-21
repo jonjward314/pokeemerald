@@ -943,6 +943,34 @@ window.addEventListener('keyup', (event) => {
   setPressed(name, false);
 });
 
+// Game controllers (Switch Pro Controller, Joy-Cons, Xbox, PlayStation) via the
+// Gamepad API's standard layout. Face buttons follow their position, like a
+// GBA: right = A, bottom = B. Left stick works as the d-pad.
+const padButtons = [
+  [1, 'a'], [0, 'b'], [4, 'l'], [5, 'r'], [6, 'l'], [7, 'r'], [8, 'select'], [9, 'start'],
+  [12, 'up'], [13, 'down'], [14, 'left'], [15, 'right'],
+];
+const padHeld = new Set();
+// Edge on Xbox turns the controller into a mouse unless the page asks for it.
+try { if ('gamepadInputEmulation' in navigator) navigator.gamepadInputEmulation = 'gamepad'; } catch { /* ignore */ }
+function pollGamepads() {
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  const now = new Set();
+  for (const pad of pads) {
+    if (!pad || !pad.connected) continue;
+    for (const [index, name] of padButtons) if (pad.buttons[index]?.pressed) now.add(name);
+    const [x = 0, y = 0] = pad.axes;
+    if (x < -0.5) now.add('left');
+    if (x > 0.5) now.add('right');
+    if (y < -0.5) now.add('up');
+    if (y > 0.5) now.add('down');
+  }
+  for (const name of now) if (!padHeld.has(name)) setPressed(name, true);
+  for (const name of padHeld) if (!now.has(name)) setPressed(name, false);
+  padHeld.clear();
+  for (const name of now) padHeld.add(name);
+}
+
 window.addEventListener('beforeunload', () => saveFlashIfChanged(true));
 window.addEventListener('pagehide', () => saveFlashIfChanged(true));
 window.addEventListener('visibilitychange', () => {
@@ -1288,6 +1316,7 @@ function tick(thisBootId, now) {
   try {
     const elapsedMs = Math.min(now - lastTick, 100);
     lastTick = now;
+    pollGamepads();
     const frames = runFramesForTick(elapsedMs);
     gameAudio.pump(instance, memory, speed);
     render();

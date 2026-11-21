@@ -47,7 +47,7 @@
     </section>
 
     <details class="more">
-      <summary>More</summary>
+      <summary><span class="menu-icon" aria-hidden="true">☰ </span>More</summary>
       <div class="status" id="cloud-status"></div>
       <div class="status" id="status">loading…</div>
 
@@ -81,7 +81,22 @@
         <p class="keys">To battle or trade, both players go upstairs in any Pokémon Center and talk to the Cable Club lady at the same time, on the same cable number.</p>
       </div>
 
-      <p class="keys">When you save in the game, it is kept in this browser and, on the family site, in your account too. Keyboard: arrows, Z = A, X = B, Enter = Start, Shift = Select, A/S = L/R.</p>
+      <div class="layout-control" aria-label="Layout">
+        <div class="speed-heading">Layout</div>
+        <div class="layout-buttons">
+          <button type="button" data-layout="auto">Auto</button>
+          <button type="button" data-layout="pc">Screen only</button>
+          <button type="button" data-layout="touch">Buttons</button>
+        </div>
+      </div>
+
+      <div class="key-config" aria-label="Keyboard controls">
+        <div class="speed-heading">Keyboard <button type="button" id="keys-reset" class="text-button">Reset</button></div>
+        <p class="key-help" id="key-help">Click a button, then press the key you want for it. Esc opens and closes this menu.</p>
+        <div class="key-grid" id="key-grid"></div>
+      </div>
+
+      <p class="keys">When you save in the game, it is kept in this browser and, on the family site, in your account too.</p>
     </details>
   </main>
   <script type="module" src="web/app.js"></script>

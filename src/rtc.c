@@ -1,5 +1,8 @@
 #include "global.h"
 #include "rtc.h"
+#if WASM
+#include "wasm_rules.h"
+#endif
 #include "string_util.h"
 #include "text.h"
 
@@ -289,6 +292,17 @@ void RtcCalcTimeDifference(struct SiiRtcInfo *rtc, struct Time *result, struct T
 
 void RtcCalcLocalTime(void)
 {
+#if WASM
+    // The web build's clock is the device's local time (shifted or locked
+    // by the admin page), so the game shows it as is, ignoring the time
+    // set in the intro. Days stay as they were.
+    if (WasmRtcAvailable())
+    {
+        gSaveBlock2Ptr->localTimeOffset.hours = 0;
+        gSaveBlock2Ptr->localTimeOffset.minutes = 0;
+        gSaveBlock2Ptr->localTimeOffset.seconds = 0;
+    }
+#endif
     RtcGetInfo(&sRtc);
     RtcCalcTimeDifference(&sRtc, &gLocalTime, &gSaveBlock2Ptr->localTimeOffset);
 }

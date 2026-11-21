@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#123029" />
+  <title>Emerald Admin</title>
+  <link rel="icon" href="../web/icon-192.png" />
+  <link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>Emerald Admin</h1>
+      <p class="who" id="who">Checking sign-in…</p>
+    </div>
+    <a class="play" href="../">Play the game</a>
+  </header>
+
+  <nav class="tabs" aria-label="Sections">
+    <button type="button" class="tab active" data-tab="rules">Game rules</button>
+    <button type="button" class="tab" data-tab="saves" disabled title="Coming next">Save editor</button>
+    <button type="button" class="tab" data-tab="trainers" disabled title="Coming next">Trainers</button>
+  </nav>
+
+  <main>
+    <section id="rules" class="panel">
+      <div class="card">
+        <label class="field-label" for="scope">Rules for</label>
+        <div class="scope-row">
+          <select id="scope"></select>
+          <button type="button" id="add-player" class="ghost">Add player</button>
+        </div>
+        <p class="hint" id="scope-hint"></p>
+      </div>
+
+      <form id="rules-form" class="card" autocomplete="off">
+        <fieldset data-rule="expPercent">
+          <legend>EXP from battles</legend>
+          <label class="override"><input type="checkbox" data-override /> Set for this player</label>
+          <div class="presets" data-presets="50,100,150,200,300,500"></div>
+          <div class="number-row"><input type="number" name="expPercent" min="0" max="1000" step="10" /> % of normal</div>
+        </fieldset>
+
+        <fieldset data-rule="moneyPercent">
+          <legend>Prize money from trainers</legend>
+          <label class="override"><input type="checkbox" data-override /> Set for this player</label>
+          <div class="presets" data-presets="50,100,150,200,300,500"></div>
+          <div class="number-row"><input type="number" name="moneyPercent" min="0" max="1000" step="10" /> % of normal</div>
+        </fieldset>
+
+        <fieldset data-rule="encounterPercent">
+          <legend>Wild Pokémon encounters</legend>
+          <label class="override"><input type="checkbox" data-override /> Set for this player</label>
+          <div class="presets" data-presets="0,50,100,150,200"></div>
+          <div class="number-row"><input type="number" name="encounterPercent" min="0" max="400" step="10" /> % of normal</div>
+          <p class="hint">How often wild Pokémon jump out in grass, caves and water. 0% means none.</p>
+        </fieldset>
+
+        <fieldset data-rule="clock">
+          <legend>Game clock</legend>
+          <label class="override"><input type="checkbox" data-override /> Set for this player</label>
+          <div class="radio-list">
+            <label><input type="radio" name="clockMode" value="real" /> Real time on their device</label>
+            <label><input type="radio" name="clockMode" value="shift" /> Shift the clock by
+              <input type="number" name="clockShiftHours" min="-23" max="23" step="1" class="small" /> hours</label>
+            <label><input type="radio" name="clockMode" value="lock" /> Always
+              <select name="clockLockHour" class="small"></select></label>
+          </div>
+          <div class="presets" id="clock-presets">
+            <button type="button" data-lock="12">Always day</button>
+            <button type="button" data-lock="18">Always evening</button>
+            <button type="button" data-lock="22">Always night</button>
+            <button type="button" data-real>Real time</button>
+          </div>
+          <p class="hint">The clock drives berries, tides, daily events and the day/night look. With the clock locked, the day still changes at midnight.</p>
+        </fieldset>
+
+        <fieldset data-rule="dayNight">
+          <legend>Day and night look</legend>
+          <label class="override"><input type="checkbox" data-override /> Set for this player</label>
+          <label class="switch"><input type="checkbox" name="dayNight" /> Darken outdoor areas in the evening and at night</label>
+        </fieldset>
+
+        <div class="actions">
+          <button type="submit" class="primary" id="save">Save rules</button>
+          <button type="button" class="ghost danger" id="clear-player" hidden>Remove this player's rules</button>
+        </div>
+        <p class="status" id="status" role="status"></p>
+        <p class="hint">A running game picks up new rules within 5 minutes, or straight away when it is reopened or brought back to the front.</p>
+      </form>
+    </section>
+  </main>
+
+  <script type="module" src="admin.js"></script>
+</body>
+</html>

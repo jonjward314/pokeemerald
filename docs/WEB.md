@@ -114,6 +114,13 @@ The **Game rules** section sets, for everyone or for one player:
   tides and daily events follow it.
 - A day and night look: outdoor maps get an evening or night tint.
 
+The **Wild Pokémon** section replaces who appears in grass, caves and
+surfing on any route or area, for everyone or one player: check Pokémon
+and each gets an equal share, at the area's usual levels (fishing and Rock
+Smash stay as they are). Stored as `encounters` in the rules
+(`{"group:num": [species ids]}`) and written into `gWasmEncounterOverrides`.
+The route and species lists come from `tools/generate_admin_data.mjs`.
+
 The **Logins** section marks shared logins (a `pickers` table): a family
 email the kids share, which asks "Who's playing?" when the game opens. The
 profiles behind that picker come with the multiplayer work.

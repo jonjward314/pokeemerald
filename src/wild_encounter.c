@@ -454,6 +454,13 @@ static bool8 TryGenerateWildMon(const struct WildPokemonInfo *wildMonInfo, u8 ar
     if (gMapHeader.mapLayoutId != LAYOUT_BATTLE_FRONTIER_BATTLE_PIKE_ROOM_WILD_MONS && flags & WILD_CHECK_KEEN_EYE && !IsAbilityAllowingEncounter(level))
         return FALSE;
 
+#if WASM
+    if (area != WILD_AREA_ROCKS)
+    {
+        CreateWildMon(WasmOverrideWildSpecies(wildMonInfo->wildPokemon[wildMonIndex].species), level);
+        return TRUE;
+    }
+#endif
     CreateWildMon(wildMonInfo->wildPokemon[wildMonIndex].species, level);
     return TRUE;
 }

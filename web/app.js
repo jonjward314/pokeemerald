@@ -76,11 +76,22 @@ const buttons = {
   l: 1 << 9,
 };
 
-const keyMap = new Map([
+const DEFAULT_KEYS = [
   ['KeyZ', 'a'], ['KeyX', 'b'], ['ShiftLeft', 'select'], ['ShiftRight', 'select'], ['Enter', 'start'],
   ['ArrowRight', 'right'], ['ArrowLeft', 'left'], ['ArrowUp', 'up'], ['ArrowDown', 'down'],
   ['KeyS', 'r'], ['KeyA', 'l'],
-]);
+];
+const KEYS_STORAGE_KEY = 'emerald-keys';
+const LAYOUT_STORAGE_KEY = 'emerald-layout';
+const keyMap = new Map(loadKeyMap());
+
+function loadKeyMap() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(KEYS_STORAGE_KEY));
+    if (Array.isArray(stored) && stored.every((e) => Array.isArray(e) && e[1] in buttons)) return stored;
+  } catch { /* storage disabled or bad data */ }
+  return DEFAULT_KEYS;
+}
 
 const canvas = document.querySelector('#screen');
 const statusEl = document.querySelector('#status');
@@ -930,6 +941,16 @@ function setPressed(name, isPressed) {
 }
 
 window.addEventListener('keydown', (event) => {
+  if (rebinding) {
+    event.preventDefault();
+    finishRebind(event.code);
+    return;
+  }
+  if (event.code === 'Escape' && document.documentElement.classList.contains('pc')) {
+    event.preventDefault();
+    moreMenu.open = !moreMenu.open;
+    return;
+  }
   const name = keyMap.get(event.code);
   if (!name) return;
   event.preventDefault();
@@ -1069,6 +1090,105 @@ fullscreenButton.addEventListener('click', async () => {
 });
 
 document.addEventListener('fullscreenchange', updateFullscreenButton);
+
+// ---- PC mode: screen only, flyout menu, keyboard configurator ----
+const moreMenu = document.querySelector('.more');
+const layoutButtons = document.querySelectorAll('[data-layout]');
+const keyGrid = document.querySelector('#key-grid');
+const keyHelp = document.querySelector('#key-help');
+const pcQuery = window.matchMedia('(hover: hover) and (pointer: fine)');
+let rebinding = null;
+
+function storedLayout() {
+  try { return localStorage.getItem(LAYOUT_STORAGE_KEY) || 'auto'; } catch { return 'auto'; }
+}
+
+function applyLayout() {
+  const choice = storedLayout();
+  const pc = choice === 'pc' || (choice === 'auto' && pcQuery.matches);
+  document.documentElement.classList.toggle('pc', pc);
+  layoutButtons.forEach((b) => b.classList.toggle('active', b.dataset.layout === choice));
+}
+
+layoutButtons.forEach((button) => button.addEventListener('click', () => {
+  try { localStorage.setItem(LAYOUT_STORAGE_KEY, button.dataset.layout); } catch { /* storage disabled */ }
+  applyLayout();
+}));
+pcQuery.addEventListener?.('change', applyLayout);
+applyLayout();
+
+// Clicking outside the open flyout closes it.
+document.addEventListener('pointerdown', (event) => {
+  if (moreMenu.open && document.documentElement.classList.contains('pc') && !moreMenu.contains(event.target)) {
+    moreMenu.open = false;
+  }
+});
+moreMenu.addEventListener('toggle', () => { if (!moreMenu.open) cancelRebind(); });
+
+const KEY_LABELS = [
+  ['a', 'A'], ['b', 'B'], ['l', 'L'], ['r', 'R'], ['start', 'Start'], ['select', 'Select'],
+  ['up', 'Up'], ['down', 'Down'], ['left', 'Left'], ['right', 'Right'],
+];
+
+function keyName(code) {
+  const names = {
+    ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Space: 'Space', Enter: 'Enter',
+    ShiftLeft: 'Shift', ShiftRight: 'Shift', ControlLeft: 'Ctrl', ControlRight: 'Ctrl',
+    AltLeft: 'Alt', AltRight: 'Alt', Backspace: 'Backspace', Tab: 'Tab',
+  };
+  if (names[code]) return names[code];
+  if (code.startsWith('Key')) return code.slice(3);
+  if (code.startsWith('Digit')) return code.slice(5);
+  if (code.startsWith('Numpad')) return 'Num ' + code.slice(6);
+  return code;
+}
+
+function renderKeyGrid() {
+  keyGrid.replaceChildren(...KEY_LABELS.map(([name, label]) => {
+    const row = document.createElement('label');
+    row.className = 'key-row';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.bind = name;
+    const codes = [...new Set([...keyMap].filter(([, n]) => n === name).map(([code]) => keyName(code)))];
+    button.textContent = rebinding === name ? 'Press a key…' : (codes.join(' / ') || 'none');
+    button.classList.toggle('listening', rebinding === name);
+    button.addEventListener('click', () => startRebind(name));
+    row.append(label, button);
+    return row;
+  }));
+}
+
+function startRebind(name) {
+  rebinding = name;
+  keyHelp.textContent = 'Press the key you want. Esc cancels.';
+  renderKeyGrid();
+}
+
+function cancelRebind() {
+  if (!rebinding) return;
+  rebinding = null;
+  keyHelp.textContent = 'Click a button, then press the key you want for it. Esc opens and closes this menu.';
+  renderKeyGrid();
+}
+
+function finishRebind(code) {
+  const name = rebinding;
+  if (code === 'Escape') { cancelRebind(); return; }
+  for (const [c, n] of [...keyMap]) if (n === name || c === code) keyMap.delete(c);
+  keyMap.set(code, name);
+  try { localStorage.setItem(KEYS_STORAGE_KEY, JSON.stringify([...keyMap])); } catch { /* storage disabled */ }
+  cancelRebind();
+}
+
+document.querySelector('#keys-reset').addEventListener('click', () => {
+  keyMap.clear();
+  for (const [code, name] of DEFAULT_KEYS) keyMap.set(code, name);
+  try { localStorage.removeItem(KEYS_STORAGE_KEY); } catch { /* storage disabled */ }
+  cancelRebind();
+  renderKeyGrid();
+});
+renderKeyGrid();
 updateFullscreenButton();
 
 downloadSaveButton.addEventListener('click', downloadSave);

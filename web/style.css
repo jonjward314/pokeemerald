@@ -440,3 +440,40 @@ html.pc .more[open] {
   box-shadow: 0 12px 40px #000000a0;
 }
 html.pc .more[open] summary { background: transparent; }
+
+/* "Who's playing?" picker for shared family sign-ins (web/profiles.js). */
+.player-picker {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: #000000c0;
+}
+.player-picker[hidden] { display: none; }
+.player-card {
+  width: min(420px, 100%);
+  padding: 20px;
+  border-radius: 18px;
+  background: var(--bg-deep);
+  box-shadow: 0 12px 40px #000000a0;
+  text-align: center;
+}
+.player-card h1 { margin: 0 0 16px; font-size: 22px; }
+.player-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+.player-button {
+  min-height: 56px;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 600;
+}
+.player-button.last { outline: 2px solid var(--mint); }
+.player-add { display: flex; gap: 8px; margin-top: 16px; }
+.player-add[hidden] { display: none; }
+.player-add input { flex: 1; min-width: 0; font: inherit; padding: 8px 10px; border-radius: 10px; border: 1px solid #ffffff30; background: #ffffff10; color: inherit; }
+.player-error { min-height: 1em; margin: 8px 0 0; color: #ffb3a8; font-size: 13px; }
+.player-note { margin: 4px 0 0; font-size: 12px; opacity: 0.7; }
+.player-control { margin-top: 12px; }
+.player-control[hidden] { display: none; }
+.player-control output { color: var(--mint); }

@@ -1,5 +1,6 @@
 import { createGameAudio } from './audio.js';
 import { createLinkCable } from './link.js';
+import { choosePlayer, pickerRequested, switchPlayer } from './profiles.js';
 
 const WIDTH = 240;
 const HEIGHT = 160;
@@ -55,7 +56,11 @@ const SAVE_BAG_POCKETS = [
   [0x690, 64, 99],
   [0x790, 46, 999],
 ];
-const SAVE_STORAGE_KEY = 'pokeemerald.wasm.flash.v1';
+const BASE_SAVE_STORAGE_KEY = 'pokeemerald.wasm.flash.v1';
+// Each player on the sign-in ("Who's playing?", web/profiles.js) keeps their
+// own copy in this browser; the account's own player keeps the original key.
+let SAVE_STORAGE_KEY = BASE_SAVE_STORAGE_KEY;
+let profileId = 'main';
 const SAVE_FLUSH_INTERVAL_MS = 1000;
 const searchParams = new URLSearchParams(location.search);
 const speedParam = searchParams.get('speed');
@@ -68,6 +73,7 @@ const linkBadge = document.getElementById('link-badge');
 const linkStatusEl = document.getElementById('link-status');
 const linkCableSelect = document.getElementById('link-cable');
 const linkCable = createLinkCable({
+  profile: () => profileId,
   onStatus: ({ text, active }) => {
     if (linkBadge) {
       linkBadge.textContent = text;
@@ -247,7 +253,11 @@ function saveFlashIfChanged(force = false) {
 // save is also kept on the server, keyed by their family login. The newest
 // copy wins at start-up, so a cleared browser or a new phone keeps the game.
 // On plain static hosting the /api/save endpoint is missing and this is off.
-const SAVE_TIME_KEY = `${SAVE_STORAGE_KEY}.savedAt`;
+let SAVE_TIME_KEY = `${SAVE_STORAGE_KEY}.savedAt`;
+
+function profileHeaders(headers = {}) {
+  return profileId === 'main' ? headers : { ...headers, 'X-Profile': profileId };
+}
 const cloudStatusEl = document.querySelector('#cloud-status');
 let cloudAvailable = false;
 let cloudUploadTimer = 0;
@@ -275,7 +285,7 @@ function timeText(ms) {
 
 async function fetchCloudSave() {
   try {
-    const res = await fetch('api/save', { cache: 'no-store', credentials: 'same-origin' });
+    const res = await fetch('api/save', { cache: 'no-store', credentials: 'same-origin', headers: profileHeaders() });
     const isJson = (res.headers.get('content-type') || '').includes('application/json');
     if (res.ok && !isJson) {
       const bytes = new Uint8Array(await res.arrayBuffer());
@@ -333,7 +343,7 @@ async function uploadCloudSave() {
       method: 'PUT',
       body,
       credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/octet-stream', 'X-Saved-At': String(savedAt) },
+      headers: profileHeaders({ 'Content-Type': 'application/octet-stream', 'X-Saved-At': String(savedAt) }),
     });
     if (res.ok) setCloudStatus(`Saved to your account at ${timeText(savedAt)}.`);
     else if (res.status === 409) setCloudStatus('Another device saved a newer game. Reload to continue from it.');
@@ -1468,7 +1478,22 @@ function tick(thisBootId, now) {
   }
 }
 
-startupSave().then(async (saveBytes) => {
+async function startPlayer() {
+  if (automate) return;
+  const player = await choosePlayer({ forcePicker: pickerRequested() });
+  profileId = player.id;
+  if (profileId !== 'main') SAVE_STORAGE_KEY = `${BASE_SAVE_STORAGE_KEY}.${profileId}`;
+  SAVE_TIME_KEY = `${SAVE_STORAGE_KEY}.savedAt`;
+  const playerEl = document.getElementById('player-name');
+  const switchButton = document.getElementById('switch-player');
+  if (playerEl && player.name) playerEl.textContent = player.name;
+  if (switchButton && player.profiles.length) {
+    switchButton.closest('.player-control').hidden = false;
+    switchButton.addEventListener('click', switchPlayer);
+  }
+}
+
+startPlayer().then(startupSave).then(async (saveBytes) => {
   await boot(saveBytes);
   if (cloudUploadAfterBoot) scheduleCloudUpload(0);
 }).catch((error) => {

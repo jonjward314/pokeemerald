@@ -13,7 +13,7 @@ const CABLE_KEY = 'pokeemerald.link.cable';
 const UNPLUG_AFTER_MS = 30000;
 const RETRY_MS = 2000;
 
-export function createLinkCable({ onStatus = () => {} } = {}) {
+export function createLinkCable({ onStatus = () => {}, profile = () => 'main' } = {}) {
   let exports = null;
   let memory = null;
   let ws = null;
@@ -70,6 +70,7 @@ export function createLinkCable({ onStatus = () => {} } = {}) {
     if (ws || !wsWanted) return;
     clearTimeout(retryTimer);
     const url = new URL(`api/link?cable=${cable()}`, location.href);
+    if (profile() !== 'main') url.searchParams.set('profile', profile());
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
     const devName = new URLSearchParams(location.search).get('player');
     if (devName) url.searchParams.set('name', devName);

@@ -69,6 +69,11 @@
         <input id="upload-save" type="file" accept=".sav,.srm,application/octet-stream" />
       </div>
 
+      <div class="player-control" aria-label="Player" hidden>
+        <div class="speed-heading">Playing as <output id="player-name"></output></div>
+        <button type="button" id="switch-player">Switch player</button>
+      </div>
+
       <div class="link-control" aria-label="Link cable">
         <div class="speed-heading">Link cable
           <select id="link-cable" aria-label="Which link cable">
@@ -99,6 +104,18 @@
       <p class="keys">When you save in the game, it is kept in this browser and, on the family site, in your account too.</p>
     </details>
   </main>
+  <div class="player-picker" id="player-picker" role="dialog" aria-modal="true" aria-labelledby="player-picker-title" hidden>
+    <div class="player-card">
+      <h1 id="player-picker-title">Who's playing?</h1>
+      <div class="player-list"></div>
+      <form class="player-add">
+        <input type="text" maxlength="12" placeholder="New player's name" aria-label="New player's name" autocomplete="off" />
+        <button type="submit">Add</button>
+      </form>
+      <p class="player-error" role="alert"></p>
+      <p class="player-note">Each player has their own game and save.</p>
+    </div>
+  </div>
   <script type="module" src="web/app.js"></script>
 </body>
 </html>

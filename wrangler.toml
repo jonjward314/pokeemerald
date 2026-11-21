@@ -27,4 +27,4 @@ database_id = "dc6f7d14-3c60-4fca-9c94-29bb0e7c6b49"
 # From Zero Trust > Settings > Custom pages, e.g. "yourfamily.cloudflareaccess.com".
 ACCESS_TEAM_DOMAIN = "sparkling-mountain-9592.cloudflareaccess.com"
 # From Zero Trust > Access > Applications > (your app) > Overview > Application Audience (AUD) Tag.
-ACCESS_AUD = ""
+ACCESS_AUD = "87b4c83ad4db240e8aff2398fbc776b0b433f2f66fea5f332c15e15ccd8ff8e0"

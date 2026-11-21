@@ -272,7 +272,7 @@ ifeq ($(COMPARE),1)
 	@$(SHA1) rom.sha1
 endif
 
-wasm: generated wasm-assets $(WASM) $(WASM_SOUND_BIN)
+wasm: generated wasm-assets $(WASM)
 
 native-raylib: $(NATIVE_RAYLIB)
 
@@ -314,6 +314,9 @@ $(WASM_SOUND_ELF): $(WASM_SOUND_LD) $(WASM_SOUND_DATA_OBJ) $(MID_OBJS)
 
 $(WASM_SOUND_BIN): $(WASM_SOUND_ELF)
 	$(OBJCOPY) -O binary $< $@
+
+# Listed here, after WASM_SOUND_BIN is defined, so the name isn't empty.
+wasm: $(WASM_SOUND_BIN)
 
 $(WASM_SOUND_SYMS): $(WASM_SOUND_ELF) tools/wasm_sound_syms.py
 	python3 tools/wasm_sound_syms.py $(PREFIX)nm $< $@

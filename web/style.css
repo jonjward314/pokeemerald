@@ -80,7 +80,13 @@ button, summary, label {
   background: #000;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
+  transition: filter 2s ease;
 }
+
+/* Day and night on outdoor maps (see updateDayNight in app.js) */
+#screen.tint-dawn { filter: sepia(0.25) saturate(1.1) brightness(0.95); }
+#screen.tint-evening { filter: url(#tint-evening); }
+#screen.tint-night { filter: url(#tint-night); }
 
 /* Controls */
 .pad {

@@ -13,6 +13,9 @@ const files = [
   ['web/manifest.webmanifest', `${output}/web/manifest.webmanifest`],
   ['web/icon-192.png', `${output}/web/icon-192.png`],
   ['web/icon-512.png', `${output}/web/icon-512.png`],
+  ['web/admin/index.html', `${output}/admin/index.html`],
+  ['web/admin/admin.css', `${output}/admin/admin.css`],
+  ['web/admin/admin.js', `${output}/admin/admin.js`],
   ['build/wasm/pokeemerald.wasm', `${output}/build/wasm/pokeemerald.wasm`],
 ];
 

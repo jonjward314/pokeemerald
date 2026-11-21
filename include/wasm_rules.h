@@ -1,0 +1,33 @@
+#ifndef GUARD_WASM_RULES_H
+#define GUARD_WASM_RULES_H
+
+#if WASM
+
+#include "siirtc.h"
+
+// House rules for the web build, written by web/app.js from the admin page
+// (worker/index.js). The page writes fields by byte offset, so keep this
+// layout in sync with writeGameRules() in web/app.js.
+struct WasmRules
+{
+    /*0x00*/ u32 version;          // bumped by the page each time it writes
+    /*0x04*/ u16 expPercent;       // EXP from battles, 100 = normal
+    /*0x06*/ u16 moneyPercent;     // prize money from trainers, 100 = normal
+    /*0x08*/ u16 encounterPercent; // wild encounter rate, 100 = normal
+    /*0x0A*/ u8 dayNight;          // 1 = report the time of day for the overworld tint
+    /*0x0B*/ u8 padding;
+    /*0x0C*/ u32 hostSeconds;      // local time as seconds since 2000-01-01 00:00; 0 = no clock
+};
+
+extern struct WasmRules gWasmRules;
+
+u32 WasmApplyExpRule(u32 exp);
+u32 WasmApplyMoneyRule(u32 money);
+u32 WasmApplyEncounterRule(u32 encounterRate);
+bool8 WasmRtcAvailable(void);
+void WasmRtcFill(struct SiiRtcInfo *rtc);
+u8 WasmDayNightPhase(void);
+
+#endif // WASM
+
+#endif // GUARD_WASM_RULES_H

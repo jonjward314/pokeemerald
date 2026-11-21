@@ -354,6 +354,90 @@ async function uploadCloudSave() {
   }
 }
 
+// ---- House rules -----------------------------------------------------------
+// The admin page (/admin, worker/index.js) sets EXP, prize money and
+// encounter multipliers and the game clock. They are written into the C
+// struct gWasmRules (include/wasm_rules.h) by byte offset. The clock is the
+// device's local time, which also turns on the game's real-time clock.
+const RULES_REFRESH_MS = 5 * 60 * 1000;
+const SECONDS_1970_TO_2000 = 946684800;
+const screenEl = document.querySelector('#screen');
+let gameRules = {
+  expPercent: 100, moneyPercent: 100, encounterPercent: 100,
+  clockMode: 'real', clockShiftHours: 0, clockLockHour: 12, dayNight: true,
+};
+let rulesVersion = 0;
+let lastPhaseCheck = 0;
+let dayNightPhase = 0;
+// Replays (?automate=1) stay deterministic: no rules or clock unless ?rules=1.
+const rulesEnabled = !automate || searchParams.get('rules') === '1';
+
+async function fetchGameRules(timeoutMs = 3000) {
+  if (!rulesEnabled) return;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch('api/rules', { cache: 'no-store', credentials: 'same-origin', signal: controller.signal, headers: profileHeaders() });
+    if (!res.ok || !(res.headers.get('content-type') || '').includes('application/json')) return;
+    gameRules = { ...gameRules, ...(await res.json()) };
+    writeGameRules();
+  } catch { /* offline or static hosting: keep the last rules */ } finally {
+    clearTimeout(timer);
+  }
+}
+
+function rulesView() {
+  const address = instance?.exports.gWasmRules?.value;
+  if (address === undefined || !memory) return null;
+  return { view: new DataView(memory.buffer), address };
+}
+
+function writeGameRules() {
+  if (!rulesEnabled) return;
+  const target = rulesView();
+  if (!target) return;
+  const { view, address } = target;
+  view.setUint32(address + 0x00, ++rulesVersion, true);
+  view.setUint16(address + 0x04, gameRules.expPercent, true);
+  view.setUint16(address + 0x06, gameRules.moneyPercent, true);
+  view.setUint16(address + 0x08, gameRules.encounterPercent, true);
+  view.setUint8(address + 0x0a, gameRules.dayNight ? 1 : 0);
+  writeGameClock();
+}
+
+function gameClockSeconds() {
+  const now = new Date();
+  const local = Math.floor(now.getTime() / 1000) - now.getTimezoneOffset() * 60;
+  let seconds = local;
+  if (gameRules.clockMode === 'shift') seconds += gameRules.clockShiftHours * 3600;
+  else if (gameRules.clockMode === 'lock') seconds = Math.floor(local / 86400) * 86400 + gameRules.clockLockHour * 3600;
+  return Math.max(1, seconds - SECONDS_1970_TO_2000);
+}
+
+function writeGameClock() {
+  if (!rulesEnabled) return;
+  const target = rulesView();
+  if (target) target.view.setUint32(target.address + 0x0c, gameClockSeconds(), true);
+}
+
+// Darkens outdoor maps in the evening and at night (the original game has no
+// day/night look). The game reports the phase; the page just tints the canvas.
+function updateDayNight(now) {
+  if (!rulesEnabled || now - lastPhaseCheck < 500) return;
+  lastPhaseCheck = now;
+  const phase = instance?.exports.WasmDayNightPhase ? instance.exports.WasmDayNightPhase() : 0;
+  if (phase === dayNightPhase) return;
+  dayNightPhase = phase;
+  screenEl.classList.toggle('tint-dawn', phase === 1);
+  screenEl.classList.toggle('tint-evening', phase === 2);
+  screenEl.classList.toggle('tint-night', phase === 3);
+}
+
+setInterval(fetchGameRules, RULES_REFRESH_MS);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') fetchGameRules();
+});
+
 function downloadSave() {
   if (!u8) return;
   saveFlashIfChanged(true);
@@ -1251,6 +1335,7 @@ async function boot(saveBytes) {
   refreshViews();
   refreshFrameImage();
   loadFlashSave(saveBytes);
+  writeGameRules();
   writeKeys();
   instance.exports.AgbMain();
   currentFrame = 0;
@@ -1467,7 +1552,9 @@ function tick(thisBootId, now) {
     const elapsedMs = Math.min(now - lastTick, 100);
     lastTick = now;
     pollGamepads();
+    writeGameClock();
     const frames = runFramesForTick(elapsedMs);
+    updateDayNight(now);
     gameAudio.pump(instance, memory, speed);
     render();
     updateFps(frames);
@@ -1493,7 +1580,7 @@ async function startPlayer() {
   }
 }
 
-startPlayer().then(startupSave).then(async (saveBytes) => {
+startPlayer().then(() => Promise.all([startupSave(), fetchGameRules()])).then(async ([saveBytes]) => {
   await boot(saveBytes);
   if (cloudUploadAfterBoot) scheduleCloudUpload(0);
 }).catch((error) => {

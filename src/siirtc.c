@@ -5,6 +5,9 @@
 #include "gba/gba.h"
 #include "siirtc.h"
 #include "config.h"
+#if WASM
+#include "wasm_rules.h"
+#endif
 
 #define STATUS_INTFE  0x02 // frequency interrupt enable
 #define STATUS_INTME  0x08 // per-minute interrupt enable
@@ -94,6 +97,10 @@ u8 SiiRtcProbe(void)
 {
     u8 errorCode;
     struct SiiRtcInfo rtc;
+#if WASM
+    if (WasmRtcAvailable())
+        return 1;
+#endif
 
     if (!SiiRtcGetStatus(&rtc))
         return 0;
@@ -139,6 +146,10 @@ bool8 SiiRtcReset(void)
 {
     bool8 result;
     struct SiiRtcInfo rtc;
+#if WASM
+    if (WasmRtcAvailable())
+        return TRUE;
+#endif
 
     if (sLocked == TRUE)
         return FALSE;
@@ -167,6 +178,13 @@ bool8 SiiRtcReset(void)
 bool8 SiiRtcGetStatus(struct SiiRtcInfo *rtc)
 {
     u8 statusData;
+#if WASM
+    if (WasmRtcAvailable())
+    {
+        rtc->status = SIIRTCINFO_24HOUR;
+        return TRUE;
+    }
+#endif
 
     if (sLocked == TRUE)
         return FALSE;
@@ -200,6 +218,10 @@ bool8 SiiRtcGetStatus(struct SiiRtcInfo *rtc)
 bool8 SiiRtcSetStatus(struct SiiRtcInfo *rtc)
 {
     u8 statusData;
+#if WASM
+    if (WasmRtcAvailable())
+        return TRUE;
+#endif
 
     if (sLocked == TRUE)
         return FALSE;
@@ -231,6 +253,13 @@ bool8 SiiRtcSetStatus(struct SiiRtcInfo *rtc)
 bool8 SiiRtcGetDateTime(struct SiiRtcInfo *rtc)
 {
     u8 i;
+#if WASM
+    if (WasmRtcAvailable())
+    {
+        WasmRtcFill(rtc);
+        return TRUE;
+    }
+#endif
 
     if (sLocked == TRUE)
         return FALSE;
@@ -262,6 +291,10 @@ bool8 SiiRtcGetDateTime(struct SiiRtcInfo *rtc)
 bool8 SiiRtcSetDateTime(struct SiiRtcInfo *rtc)
 {
     u8 i;
+#if WASM
+    if (WasmRtcAvailable())
+        return TRUE;
+#endif
 
     if (sLocked == TRUE)
         return FALSE;
@@ -289,6 +322,13 @@ bool8 SiiRtcSetDateTime(struct SiiRtcInfo *rtc)
 bool8 SiiRtcGetTime(struct SiiRtcInfo *rtc)
 {
     u8 i;
+#if WASM
+    if (WasmRtcAvailable())
+    {
+        WasmRtcFill(rtc);
+        return TRUE;
+    }
+#endif
 
     if (sLocked == TRUE)
         return FALSE;
@@ -320,6 +360,10 @@ bool8 SiiRtcGetTime(struct SiiRtcInfo *rtc)
 bool8 SiiRtcSetTime(struct SiiRtcInfo *rtc)
 {
     u8 i;
+#if WASM
+    if (WasmRtcAvailable())
+        return TRUE;
+#endif
 
     if (sLocked == TRUE)
         return FALSE;

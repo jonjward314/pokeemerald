@@ -27,8 +27,17 @@ CREATE TABLE IF NOT EXISTS profiles (
   PRIMARY KEY (email, id)
 );
 
--- Shared sign-ins that ask "Who's playing?"; set from the admin page.
+
+-- House rules from the admin page: '*' for everyone, or one player's email.
+-- (The Worker also creates this table itself if it is missing.)
+CREATE TABLE IF NOT EXISTS rules (
+  email TEXT PRIMARY KEY,
+  data TEXT NOT NULL,          -- JSON, see RULE_DEFAULTS in worker/index.js
+  updated_at INTEGER NOT NULL
+);
+
+-- Shared family logins that show a who's-playing picker (set on /admin).
 CREATE TABLE IF NOT EXISTS pickers (
   email TEXT PRIMARY KEY,
-  added_at INTEGER
+  added_at INTEGER NOT NULL
 );

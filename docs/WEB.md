@@ -97,6 +97,35 @@ To try the Worker locally: put `DEV_PLAYER_EMAIL=you@example.com` in a
 The built game contains Nintendo's graphics, music and text. Keep it behind
 the family login; do not publish it openly.
 
+## Admin page and house rules
+
+`/admin` (for example `https://emerald.wardtechnet.com/admin`) is for the
+game admin only. The Worker lets a signed-in family member through only if
+the SHA-256 of their email is in `ADMIN_EMAIL_SHA256` in `wrangler.toml`
+(hashes keep the address out of this public repository). Make one with
+`printf '%s' you@example.com | sha256sum`.
+
+The **Game rules** section sets, for everyone or for one player:
+
+- EXP from battles, prize money from trainers and the wild encounter rate,
+  each as a percent of normal (0% encounters turns wild battles off).
+- The game clock: the device's real time, shifted by some hours, or locked
+  to one hour of the day (the day still changes at midnight). Berries,
+  tides and daily events follow it.
+- A day and night look: outdoor maps get an evening or night tint.
+
+The **Logins** section marks shared logins (a `pickers` table): a family
+email the kids share, which asks "Who's playing?" when the game opens. The
+profiles behind that picker come with the multiplayer work.
+
+Rules live in the `rules` table of the D1 database (the Worker creates it).
+The game reads them at start-up, every 5 minutes and whenever it comes back
+to the front; `web/app.js` writes them into `gWasmRules`
+(`include/wasm_rules.h`), and small `#if WASM` hooks apply them. The browser
+also feeds the game's real-time clock, which had no real time behind it in
+the web build before. Replays (`?automate=1`) skip rules and the clock so
+they stay deterministic; add `&rules=1` to test with them.
+
 ## Saves
 
 Saving in the game writes the save into that browser. On the Option B site it

@@ -21,6 +21,9 @@
 #include "constants/items.h"
 #include "constants/layouts.h"
 #include "constants/weather.h"
+#if WASM
+#include "wasm_rules.h"
+#endif
 
 extern const u8 EventScript_RepelWoreOff[];
 
@@ -523,6 +526,9 @@ static bool8 WildEncounterCheck(u32 encounterRate, bool8 ignoreAbility)
         else if (ability == ABILITY_SAND_VEIL && gSaveBlock1Ptr->weather == WEATHER_SANDSTORM)
             encounterRate /= 2;
     }
+#if WASM
+    encounterRate = WasmApplyEncounterRule(encounterRate);
+#endif
     if (encounterRate > MAX_ENCOUNTER_RATE)
         encounterRate = MAX_ENCOUNTER_RATE;
     return EncounterOddsCheck(encounterRate);

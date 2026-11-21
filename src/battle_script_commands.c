@@ -51,6 +51,9 @@
 #include "constants/rgb.h"
 #include "constants/songs.h"
 #include "constants/trainers.h"
+#if WASM
+#include "wasm_rules.h"
+#endif
 
 extern const u8 *const gBattleScriptsForMoveEffects[];
 
@@ -3377,6 +3380,9 @@ static void Cmd_getexp(void)
                         gBattleMoveDamage = (gBattleMoveDamage * 150) / 100;
                     if (gBattleTypeFlags & BATTLE_TYPE_TRAINER)
                         gBattleMoveDamage = (gBattleMoveDamage * 150) / 100;
+#if WASM
+                    gBattleMoveDamage = WasmApplyExpRule(gBattleMoveDamage);
+#endif
 
                     if (IsTradedMon(&gPlayerParty[gBattleStruct->expGetterMonId]))
                     {
@@ -5637,6 +5643,9 @@ static void Cmd_getmoneyreward(void)
     u32 moneyReward = GetTrainerMoneyToGive(gTrainerBattleOpponent_A);
     if (gBattleTypeFlags & BATTLE_TYPE_TWO_OPPONENTS)
         moneyReward += GetTrainerMoneyToGive(gTrainerBattleOpponent_B);
+#if WASM
+    moneyReward = WasmApplyMoneyRule(moneyReward);
+#endif
 
     AddMoney(&gSaveBlock1Ptr->money, moneyReward);
     PREPARE_WORD_NUMBER_BUFFER(gBattleTextBuff1, 5, moneyReward);

@@ -55,3 +55,4 @@ prefabs.json
 # Cloudflare local dev
 .dev.vars
 .wrangler/
+!web/admin/*.js

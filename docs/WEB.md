@@ -145,4 +145,5 @@ names differ.
 
 - The Union Room, wireless games and Record Corner over the wireless adapter
   are not connected (the game behaves as if no wireless adapter is plugged in).
-  Cable Club trades, single/double/multi battles and record mixing work.
+  Cable Club trades and single battles are tested; double and multi battles
+  and the Record Corner use the same link and should work, but are untested.

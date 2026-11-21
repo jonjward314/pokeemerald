@@ -9,6 +9,8 @@ const types = new Map([
   ['.js', 'text/javascript; charset=utf-8'],
   ['.css', 'text/css; charset=utf-8'],
   ['.wasm', 'application/wasm'],
+  ['.png', 'image/png'],
+  ['.webmanifest', 'application/manifest+json'],
 ]);
 
 function fileFor(url) {

@@ -7,6 +7,9 @@ const files = [
   ['web/index.html', `${output}/index.html`],
   ['web/style.css', `${output}/web/style.css`],
   ['web/app.js', `${output}/web/app.js`],
+  ['web/manifest.webmanifest', `${output}/web/manifest.webmanifest`],
+  ['web/icon-192.png', `${output}/web/icon-192.png`],
+  ['web/icon-512.png', `${output}/web/icon-512.png`],
   ['build/wasm/pokeemerald.wasm', `${output}/build/wasm/pokeemerald.wasm`],
 ];
 

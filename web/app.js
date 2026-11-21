@@ -514,7 +514,7 @@ function normalizeSaveForCurrentBuild(bytes) {
 }
 
 async function wasmModule() {
-  wasmModulePromise ??= fetch('/build/wasm/pokeemerald.wasm', { cache: 'no-store' })
+  wasmModulePromise ??= fetch('build/wasm/pokeemerald.wasm', { cache: 'no-cache' })
     .then((res) => res.arrayBuffer())
     .then(async (bytes) => ({ bytes, module: await WebAssembly.compile(bytes) }));
   return wasmModulePromise;
@@ -823,13 +823,78 @@ window.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') saveFlashIfChanged(true);
 });
 
-document.querySelectorAll('[data-key]').forEach((button) => {
-  const name = button.dataset.key;
-  button.addEventListener('pointerdown', (event) => { event.preventDefault(); setPressed(name, true); });
-  button.addEventListener('pointerup', () => setPressed(name, false));
-  button.addEventListener('pointercancel', () => setPressed(name, false));
-  button.addEventListener('pointerleave', () => setPressed(name, false));
+// Touch controls. Each finger is tracked on its own, so a child can hold a
+// direction with one thumb and tap A with the other. A finger that slides
+// across the d-pad or between face buttons changes the button it presses.
+const touchOwners = new Map(); // pointerId -> Set of button names it holds
+
+function holdForPointer(pointerId, names) {
+  const before = touchOwners.get(pointerId) || new Set();
+  const after = new Set(names);
+  touchOwners.set(pointerId, after);
+  for (const name of before) {
+    if (!after.has(name) && ![...touchOwners.values()].some((held) => held.has(name))) setPressed(name, false);
+  }
+  for (const name of after) {
+    if (!before.has(name)) {
+      setPressed(name, true);
+      if (navigator.vibrate) navigator.vibrate(8);
+    }
+  }
+}
+
+function releasePointer(pointerId) {
+  holdForPointer(pointerId, []);
+  touchOwners.delete(pointerId);
+}
+
+function dpadDirections(dpad, event) {
+  const rect = dpad.getBoundingClientRect();
+  const dx = (event.clientX - (rect.left + rect.width / 2)) / (rect.width / 2);
+  const dy = (event.clientY - (rect.top + rect.height / 2)) / (rect.height / 2);
+  if (Math.hypot(dx, dy) < 0.22) return [];
+  // Eight-way with wide cardinal zones: diagonals only within 22.5 degrees.
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+  const names = [];
+  if (angle > -67.5 && angle < 67.5) names.push('right');
+  if (angle > 112.5 || angle < -112.5) names.push('left');
+  if (angle > 22.5 && angle < 157.5) names.push('down');
+  if (angle < -22.5 && angle > -157.5) names.push('up');
+  return names;
+}
+
+document.querySelectorAll('.dpad').forEach((dpad) => {
+  const update = (event) => {
+    if (event.type !== 'pointerdown' && !touchOwners.has(event.pointerId)) return;
+    event.preventDefault();
+    holdForPointer(event.pointerId, dpadDirections(dpad, event));
+  };
+  dpad.addEventListener('pointerdown', (event) => { dpad.setPointerCapture(event.pointerId); update(event); });
+  dpad.addEventListener('pointermove', update);
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((type) => dpad.addEventListener(type, (event) => releasePointer(event.pointerId)));
 });
+
+document.querySelectorAll('[data-key]').forEach((button) => {
+  if (button.closest('.dpad')) return;
+  button.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    button.releasePointerCapture?.(event.pointerId);
+    holdForPointer(event.pointerId, [button.dataset.key]);
+  });
+  button.addEventListener('pointerenter', (event) => {
+    if (touchOwners.has(event.pointerId)) holdForPointer(event.pointerId, [button.dataset.key]);
+  });
+  button.addEventListener('pointerleave', (event) => {
+    const held = touchOwners.get(event.pointerId);
+    if (held && held.has(button.dataset.key)) holdForPointer(event.pointerId, []);
+  });
+});
+['pointerup', 'pointercancel'].forEach((type) => window.addEventListener(type, (event) => {
+  if (touchOwners.has(event.pointerId) && !event.target.closest?.('.dpad')) releasePointer(event.pointerId);
+}));
+// Stop long-press menus and double-tap zoom from interrupting play.
+document.addEventListener('contextmenu', (event) => { if (event.target.closest('.pad')) event.preventDefault(); });
+document.addEventListener('dblclick', (event) => event.preventDefault(), { passive: false });
 
 speedButtons.forEach((button) => {
   button.addEventListener('click', () => {

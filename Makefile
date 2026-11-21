@@ -15,8 +15,10 @@ MODERN      ?= 0
 # Compares the ROM to a checksum of the original - only makes sense using when non-modern
 COMPARE     ?= 0
 
-WASM_CC ?= $(shell { command -v /opt/homebrew/opt/llvm/bin/clang || command -v /usr/local/opt/llvm/bin/clang || command -v clang; })
-WASM_LD ?= $(shell { command -v wasm-ld || find "$$HOME/.rustup/toolchains" -path '*/gcc-ld/wasm-ld' -type f 2>/dev/null | head -n1; })
+# Clang 18 builds a wasm that runs but draws a black screen, so prefer a newer
+# versioned LLVM (Ubuntu's clang-20/lld-20 packages) before the plain `clang`.
+WASM_CC ?= $(shell { command -v /opt/homebrew/opt/llvm/bin/clang || command -v /usr/local/opt/llvm/bin/clang || command -v clang-21 || command -v clang-20 || command -v clang; })
+WASM_LD ?= $(shell { command -v wasm-ld-21 || command -v wasm-ld-20 || command -v wasm-ld || find "$$HOME/.rustup/toolchains" -path '*/gcc-ld/wasm-ld' -type f 2>/dev/null | head -n1; })
 NATIVE_CC ?= $(shell { command -v clang || command -v cc; })
 include tools/native/performance.mk
 KINDLE_CC ?= zig cc

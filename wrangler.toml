@@ -1,5 +1,6 @@
-name = "pokeemerald-wasm"
-account_id = "9fc9d21b2d12f99cdb4da40d8d127877"
+# Optional: deploy with the Wrangler CLI (`npx wrangler deploy`) instead of
+# uploading dist/cloudflare in the Cloudflare dashboard. See docs/WEB.md.
+name = "emerald"
 compatibility_date = "2026-05-29"
 workers_dev = false
 preview_urls = false

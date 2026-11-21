@@ -170,6 +170,21 @@ To try it locally, run `npx wrangler dev` with `DEV_PLAYER_EMAIL` set in
 `.dev.vars`, and open two windows with `?player=Dad` and `?player=Kid` so the
 names differ.
 
+## Several players on one sign-in
+
+Kids sharing one phone can share one family sign-in. On the admin page
+(`/admin`), mark that email as a *picker* login. Each time the game opens on
+it, it asks **Who's playing?**. Tap a name, or type a new one and tap **Add**
+(up to 8). Every player has their own game, save and house rules, and
+their own name in the Cable Club. **More → Switch player** goes back to the
+picker. Ordinary sign-ins (like a parent's own email) skip the picker and go
+straight to their game.
+
+On the server, the login's own player keeps its saves under the plain email.
+Each extra player is stored under `email#id`, and the `profiles` table holds
+their names. The page sends the chosen player as an `X-Profile` header (or
+`?profile=` on the link WebSocket).
+
 ## Known gaps
 
 - The Union Room, wireless games and Record Corner over the wireless adapter

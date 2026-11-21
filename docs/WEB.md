@@ -61,15 +61,23 @@ and republishes the site every time the `web` branch changes.
 3. **Deploy key for GitHub.** In Cloudflare, **My Profile → API Tokens → Create
    Token → "Edit Cloudflare Workers" template → Create**. Copy the token. Also
    copy your **Account ID** (shown on the Workers & Pages overview page).
-   In GitHub, open the repository's **Settings → Secrets and variables →
-   Actions → New repository secret** and add `CLOUDFLARE_API_TOKEN` and
-   `CLOUDFLARE_ACCOUNT_ID`.
-4. **First deploy.** In GitHub, **Actions → Build and deploy web game → Run
-   workflow**. From then on every change to `web` deploys by itself.
-5. **Your address.** In Cloudflare, **Workers & Pages → emerald → Settings →
-   Domains & Routes → Add → Custom domain**, and enter the address you want.
-6. **Family login.** **Zero Trust → Access → Applications → Add → Self-hosted**,
-   use the same address, and add a policy that allows your family's email
+   Put the Account ID in `account_id` in `wrangler.toml`. In GitHub, open the
+   repository's **Settings → Secrets and variables → Actions → New repository
+   secret** and add `CLOUDFLARE_API_TOKEN`.
+4. **First deploy.** Push any change to `web`. From then on every change to
+   `web` deploys by itself. (**Actions → Run workflow** only appears once the
+   workflow is on the default branch.)
+5. **Your address.** The Worker is served at
+   `emerald.<your-account>.workers.dev`. If your domain's DNS is on Cloudflare,
+   you can instead add it under **Workers & Pages → emerald → Settings →
+   Domains & Routes → Custom domain**. If your DNS stays elsewhere (for
+   example IONOS), add a plain HTTP redirect there from your subdomain to the
+   workers.dev address. Don't use "masked" or framed forwarding: the sign-in
+   page and Add to Home Screen don't work inside a frame.
+6. **Family login.** On a workers.dev address, open **Workers & Pages →
+   emerald → Settings → Domains & Routes**, and turn on **Cloudflare Access**
+   for the workers.dev route. On a custom domain, use **Zero Trust → Access →
+   Applications → Add → Self-hosted** with that address. Either way, and add a policy that allows your family's email
    addresses (one-time code by email, free for up to 50 people). Then copy two
    values into `wrangler.toml` under `[vars]`:
    - `ACCESS_TEAM_DOMAIN`: your team domain, like `yourfamily.cloudflareaccess.com`

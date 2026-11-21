@@ -50,3 +50,7 @@ prefabs.json
 /pokeemerald_modern-*.png
 /wasm-replay-output/
 .porydaw/
+
+# Cloudflare local dev
+.dev.vars
+.wrangler/

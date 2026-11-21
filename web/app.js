@@ -187,11 +187,118 @@ function saveFlashIfChanged(force = false) {
   const hash = hashBytes(flash);
   if (!force && hash === lastSavedFlashHash) return;
 
+  const changed = hash !== lastSavedFlashHash;
   try {
     localStorage.setItem(SAVE_STORAGE_KEY, bytesToBase64(flash));
     lastSavedFlashHash = hash;
   } catch {
     // Keep running even if the browser refuses persistent storage.
+  }
+  if (changed) {
+    setLocalSavedAt(Date.now());
+    scheduleCloudUpload();
+  }
+}
+
+// ---- Account saves -------------------------------------------------------
+// When the site runs on the Cloudflare Worker (worker/index.js), each player's
+// save is also kept on the server, keyed by their family login. The newest
+// copy wins at start-up, so a cleared browser or a new phone keeps the game.
+// On plain static hosting the /api/save endpoint is missing and this is off.
+const SAVE_TIME_KEY = `${SAVE_STORAGE_KEY}.savedAt`;
+const cloudStatusEl = document.querySelector('#cloud-status');
+let cloudAvailable = false;
+let cloudUploadTimer = 0;
+let cloudUploadAfterBoot = false;
+
+function localSavedAt() {
+  try { return Number(localStorage.getItem(SAVE_TIME_KEY)) || 0; } catch { return 0; }
+}
+
+function setLocalSavedAt(time) {
+  try { localStorage.setItem(SAVE_TIME_KEY, String(time)); } catch { /* storage disabled */ }
+}
+
+function hasLocalSave() {
+  try { return Boolean(localStorage.getItem(SAVE_STORAGE_KEY)); } catch { return false; }
+}
+
+function setCloudStatus(text) {
+  if (cloudStatusEl) cloudStatusEl.textContent = text;
+}
+
+function timeText(ms) {
+  return new Date(ms).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+async function fetchCloudSave() {
+  try {
+    const res = await fetch('api/save', { cache: 'no-store', credentials: 'same-origin' });
+    const isJson = (res.headers.get('content-type') || '').includes('application/json');
+    if (res.ok && !isJson) {
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      if (bytes.length !== FLASH_SIZE) return { available: true };
+      return { available: true, bytes, savedAt: Number(res.headers.get('X-Saved-At')) || 0 };
+    }
+    if (isJson && res.status === 404) return { available: true };
+    if (isJson && res.status === 401) setCloudStatus('Account saves: not signed in. Reload the page to sign in again.');
+    return { available: false };
+  } catch {
+    return { available: false };
+  }
+}
+
+async function startupSave() {
+  if (automate) return undefined;
+  const cloud = await fetchCloudSave();
+  cloudAvailable = cloud.available;
+  if (!cloudAvailable) {
+    if (!cloudStatusEl?.textContent) setCloudStatus('Saves are kept in this browser only.');
+    return undefined;
+  }
+
+  const localAt = localSavedAt();
+  if (cloud.bytes && (!hasLocalSave() || cloud.savedAt > localAt)) {
+    try {
+      localStorage.setItem(SAVE_STORAGE_KEY, bytesToBase64(cloud.bytes));
+      setLocalSavedAt(cloud.savedAt);
+    } catch { /* still boot from the account copy */ }
+    setCloudStatus(`Account save loaded (saved ${timeText(cloud.savedAt)}).`);
+    return cloud.bytes;
+  }
+
+  if (hasLocalSave() && (!cloud.bytes || localAt > cloud.savedAt)) {
+    cloudUploadAfterBoot = true; // this browser has the newer game
+  } else {
+    setCloudStatus(cloud.bytes ? `Account save is up to date (saved ${timeText(cloud.savedAt)}).` : 'Account saves are on. Save in the game to store it.');
+  }
+  return undefined;
+}
+
+function scheduleCloudUpload(delayMs = 1500) {
+  if (!cloudAvailable) return;
+  clearTimeout(cloudUploadTimer);
+  cloudUploadTimer = setTimeout(uploadCloudSave, delayMs);
+}
+
+async function uploadCloudSave() {
+  if (!u8 || !cloudAvailable) return;
+  const savedAt = localSavedAt() || Date.now();
+  const body = flashBytes().slice();
+  setCloudStatus('Saving to your account…');
+  try {
+    const res = await fetch('api/save', {
+      method: 'PUT',
+      body,
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/octet-stream', 'X-Saved-At': String(savedAt) },
+    });
+    if (res.ok) setCloudStatus(`Saved to your account at ${timeText(savedAt)}.`);
+    else if (res.status === 409) setCloudStatus('Another device saved a newer game. Reload to continue from it.');
+    else if (res.status === 401) setCloudStatus('Account save failed: not signed in. Reload the page to sign in again.');
+    else setCloudStatus(`Account save failed (${res.status}). It is still saved in this browser.`);
+  } catch {
+    setCloudStatus('Offline: saved in this browser. It will go to your account after the next save.');
   }
 }
 
@@ -543,7 +650,9 @@ async function uploadSave(file) {
 
   lastSavedFlashHash = hashBytes(normalized);
   localStorage.setItem(SAVE_STORAGE_KEY, bytesToBase64(normalized));
+  setLocalSavedAt(Date.now());
   await restartWithSave(normalized);
+  scheduleCloudUpload();
 }
 
 function clamp(value, min, max) {
@@ -1168,7 +1277,10 @@ function tick(thisBootId, now) {
   }
 }
 
-boot().catch((error) => {
+startupSave().then(async (saveBytes) => {
+  await boot(saveBytes);
+  if (cloudUploadAfterBoot) scheduleCloudUpload(0);
+}).catch((error) => {
   console.error(error);
   statusEl.textContent = error.stack || String(error);
 });

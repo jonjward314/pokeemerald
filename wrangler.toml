@@ -1,15 +1,29 @@
-# Optional: deploy with the Wrangler CLI (`npx wrangler deploy`) instead of
-# uploading dist/cloudflare in the Cloudflare dashboard. See docs/WEB.md.
+# Cloudflare Worker that serves the game (dist/cloudflare) and stores saves
+# in a D1 database. Setup steps are in docs/WEB.md.
 name = "emerald"
-compatibility_date = "2026-05-29"
+main = "worker/index.js"
+compatibility_date = "2025-06-01"
 workers_dev = false
 preview_urls = false
 
 [build]
 command = "make wrangler-site"
-watch_dir = ["web", "src", "include", "data", "graphics", "sound", "tools", "Makefile"]
+watch_dir = ["web", "src", "include", "data", "graphics", "sound", "tools", "Makefile", "worker"]
 
 [assets]
 directory = "./dist/cloudflare"
+binding = "ASSETS"
 html_handling = "auto-trailing-slash"
 not_found_handling = "none"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "emerald-saves"
+# Replace with the id printed by `npx wrangler d1 create emerald-saves`.
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[vars]
+# From Zero Trust > Settings > Custom pages, e.g. "yourfamily.cloudflareaccess.com".
+ACCESS_TEAM_DOMAIN = ""
+# From Zero Trust > Access > Applications > (your app) > Overview > Application Audience (AUD) Tag.
+ACCESS_AUD = ""

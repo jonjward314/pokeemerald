@@ -1,0 +1,40 @@
+# Builds the WebAssembly game and publishes it to Cloudflare whenever the
+# `web` branch changes. Needs two repository secrets (Settings > Secrets and
+# variables > Actions): CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
+# Without them it still builds, so you can see the code compiles.
+name: Build and deploy web game
+
+on:
+  push:
+    branches: [web]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-web
+  cancel-in-progress: true
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-24.04
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install compilers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-20 lld-20 libpng-dev
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Build game
+        run: |
+          make -j4 tools
+          make -j4 wasm
+          make wrangler-site
+
+      - name: Deploy to Cloudflare
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        run: npx -y wrangler@4.20.0 deploy

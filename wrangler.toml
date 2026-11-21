@@ -3,7 +3,8 @@
 name = "emerald"
 main = "worker/index.js"
 compatibility_date = "2025-06-01"
-workers_dev = false
+# Served at emerald.<account>.workers.dev; IONOS redirects emerald.wardtechnet.com here.
+workers_dev = true
 preview_urls = false
 
 [build]

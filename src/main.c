@@ -79,8 +79,8 @@ static EWRAM_DATA u16 sTrainerId = 0;
 static void UpdateLinkAndCallCallbacks(void);
 static void InitMainCallbacks(void);
 static void CallCallbacks(void);
-#if WASM
 void WasmRunFrame(void);
+#if WASM
 void WasmDmaStop0(void);
 #endif
 #ifdef BUGFIX

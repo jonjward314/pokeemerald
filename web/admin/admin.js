@@ -213,6 +213,69 @@ scopeSelect.addEventListener('change', () => {
   renderForm();
 });
 
+// ---- Tabs and shared (picker) logins ----
+
+for (const tab of document.querySelectorAll('.tab')) {
+  tab.addEventListener('click', () => {
+    for (const other of document.querySelectorAll('.tab')) other.classList.toggle('active', other === tab);
+    for (const panel of document.querySelectorAll('.panel')) panel.hidden = panel.id !== tab.dataset.tab;
+  });
+}
+
+const pickerList = document.querySelector('#picker-list');
+const pickerStatus = document.querySelector('#picker-status');
+
+function setPickerStatus(text, isError = false) {
+  pickerStatus.textContent = text;
+  pickerStatus.classList.toggle('error', isError);
+}
+
+async function loadPickers() {
+  const { pickers } = await api('../api/admin/pickers');
+  pickerList.replaceChildren();
+  if (!pickers.length) {
+    const li = document.createElement('li');
+    li.className = 'empty';
+    li.textContent = 'No shared logins yet.';
+    pickerList.append(li);
+  }
+  for (const { email } of pickers) {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.textContent = email;
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'ghost danger';
+    remove.textContent = 'Remove';
+    remove.addEventListener('click', async () => {
+      try {
+        await api('../api/admin/pickers', { method: 'DELETE', body: JSON.stringify({ email }), headers: { 'Content-Type': 'application/json' } });
+        setPickerStatus(`${email} now plays as one player.`);
+        await loadPickers();
+      } catch (error) {
+        setPickerStatus(`Could not remove: ${error.message}`, true);
+      }
+    });
+    li.append(name, remove);
+    pickerList.append(li);
+  }
+}
+
+document.querySelector('#picker-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const input = document.querySelector('#picker-email');
+  const email = input.value.trim().toLowerCase();
+  try {
+    await api('../api/admin/pickers', { method: 'PUT', body: JSON.stringify({ email }), headers: { 'Content-Type': 'application/json' } });
+    input.value = '';
+    setPickerStatus(`${email} will ask "Who's playing?"`);
+    await loadPickers();
+  } catch (error) {
+    setPickerStatus(`Could not add: ${error.message}`, true);
+  }
+});
+
+loadPickers().catch((error) => setPickerStatus(`Could not load logins: ${error.message}`, true));
 buildStaticControls();
 api('../api/whoami')
   .then((me) => { document.querySelector('#who').textContent = `Signed in as ${me.email}`; })

@@ -22,3 +22,9 @@ CREATE TABLE IF NOT EXISTS rules (
   data TEXT NOT NULL,          -- JSON, see RULE_DEFAULTS in worker/index.js
   updated_at INTEGER NOT NULL
 );
+
+-- Shared family logins that show a who's-playing picker (set on /admin).
+CREATE TABLE IF NOT EXISTS pickers (
+  email TEXT PRIMARY KEY,
+  added_at INTEGER NOT NULL
+);

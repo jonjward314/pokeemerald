@@ -41,7 +41,7 @@ async function handleApi(request, env, url) {
   const email = await playerEmail(request, env);
 
   if (url.pathname === '/api/whoami' && request.method === 'GET') {
-    return json({ email, admin: await isAdmin(email, env) });
+    return json({ email, admin: await isAdmin(email, env), picker: await isPicker(env, email) });
   }
 
   if (url.pathname === '/api/rules' && request.method === 'GET') {
@@ -154,6 +154,25 @@ async function rulesFor(env, email) {
 }
 
 async function handleAdmin(request, env, url) {
+  if (url.pathname === '/api/admin/pickers') {
+    await ensurePickersTable(env);
+    if (request.method === 'GET') {
+      const { results } = await env.DB.prepare('SELECT email, added_at FROM pickers ORDER BY email').all();
+      return json({ pickers: results.map((row) => ({ email: row.email, addedAt: row.added_at })) });
+    }
+    if (request.method === 'PUT' || request.method === 'DELETE') {
+      const body = await request.json().catch(() => null);
+      const email = String(body?.email || '').trim().toLowerCase();
+      if (!email.includes('@')) throw new HttpError(400, 'email must be an address');
+      if (request.method === 'PUT') {
+        await env.DB.prepare('INSERT OR IGNORE INTO pickers (email, added_at) VALUES (?, ?)').bind(email, Date.now()).run();
+      } else {
+        await env.DB.prepare('DELETE FROM pickers WHERE email = ?').bind(email).run();
+      }
+      return json({ ok: true });
+    }
+    throw new HttpError(405, 'method not allowed');
+  }
   if (url.pathname === '/api/admin/rules') {
     if (request.method === 'GET') {
       const rows = await rulesRows(env);
@@ -183,6 +202,23 @@ async function handleAdmin(request, env, url) {
     throw new HttpError(405, 'method not allowed');
   }
   throw new HttpError(404, 'not found');
+}
+
+// ---- Picker logins ---------------------------------------------------------
+// A picker email is a shared family login: the game asks who is playing
+// instead of treating the login as one player. The admin page manages them.
+
+let pickersTableReady = false;
+
+async function ensurePickersTable(env) {
+  if (pickersTableReady) return;
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS pickers (email TEXT PRIMARY KEY, added_at INTEGER NOT NULL)').run();
+  pickersTableReady = true;
+}
+
+async function isPicker(env, email) {
+  await ensurePickersTable(env);
+  return Boolean(await env.DB.prepare('SELECT 1 FROM pickers WHERE email = ?').bind(email).first());
 }
 
 function safeJson(text) {

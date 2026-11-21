@@ -19,6 +19,7 @@
 
   <nav class="tabs" aria-label="Sections">
     <button type="button" class="tab active" data-tab="rules">Game rules</button>
+    <button type="button" class="tab" data-tab="logins">Logins</button>
     <button type="button" class="tab" data-tab="saves" disabled title="Coming next">Save editor</button>
     <button type="button" class="tab" data-tab="trainers" disabled title="Coming next">Trainers</button>
   </nav>
@@ -89,6 +90,19 @@
         <p class="status" id="status" role="status"></p>
         <p class="hint">A running game picks up new rules within 5 minutes, or straight away when it is reopened or brought back to the front.</p>
       </form>
+    </section>
+    <section id="logins" class="panel" hidden>
+      <div class="card">
+        <h2>Shared logins</h2>
+        <p class="hint">A shared login (for example one family email the kids all use) asks "Who's playing?" when the game opens, so each kid keeps their own game. Everyone else plays as themselves.</p>
+        <ul class="login-list" id="picker-list"></ul>
+        <form id="picker-form" class="scope-row" autocomplete="off">
+          <input type="email" id="picker-email" placeholder="family@example.com" required />
+          <button type="submit" class="primary">Make shared</button>
+        </form>
+        <p class="status" id="picker-status" role="status"></p>
+        <p class="hint">The email must also be on the Family list in Cloudflare Access so it can sign in.</p>
+      </div>
     </section>
   </main>
 

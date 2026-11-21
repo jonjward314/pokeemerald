@@ -114,6 +114,10 @@ The **Game rules** section sets, for everyone or for one player:
   tides and daily events follow it.
 - A day and night look: outdoor maps get an evening or night tint.
 
+The **Logins** section marks shared logins (a `pickers` table): a family
+email the kids share, which asks "Who's playing?" when the game opens. The
+profiles behind that picker come with the multiplayer work.
+
 Rules live in the `rules` table of the D1 database (the Worker creates it).
 The game reads them at start-up, every 5 minutes and whenever it comes back
 to the front; `web/app.js` writes them into `gWasmRules`

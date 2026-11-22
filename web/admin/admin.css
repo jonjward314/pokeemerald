@@ -95,7 +95,7 @@ fieldset {
 }
 fieldset:first-child { border-top: 0; padding-top: 0; }
 legend { font-weight: 600; padding: 0; margin-bottom: 8px; float: left; width: 100%; }
-legend + * { clear: both; }
+fieldset > :not(legend) { clear: both; }
 
 fieldset.inherited .presets,
 fieldset.inherited .number-row,

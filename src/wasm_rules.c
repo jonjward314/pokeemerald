@@ -18,6 +18,7 @@ struct WasmRules gWasmRules = {
     .encounterPercent = 100,
     .dayNight = 0,
     .hostSeconds = 0,
+    .catchPercent = 100,
 };
 
 struct WasmEncounterOverride gWasmEncounterOverrides[WASM_ENCOUNTER_OVERRIDE_MAPS];
@@ -57,6 +58,17 @@ u32 WasmApplyExpRule(u32 exp)
 u32 WasmApplyMoneyRule(u32 money)
 {
     return Scale(money, gWasmRules.moneyPercent);
+}
+
+// odds above 254 is a sure catch; lower odds decide the shakes.
+u32 WasmApplyCatchRule(u32 odds)
+{
+    if (gWasmRules.catchPercent >= 10000)
+        return 255;
+    if (gWasmRules.catchPercent > 100 && odds == 0)
+        odds = 1;
+    odds = Scale(odds, gWasmRules.catchPercent);
+    return odds > 255 ? 255 : odds;
 }
 
 u32 WasmApplyEncounterRule(u32 encounterRate)

@@ -137,6 +137,7 @@ async function putSave(request, env, email) {
 const RULE_DEFAULTS = {
   expPercent: 100, // EXP from battles
   moneyPercent: 100, // prize money from trainers
+  catchPercent: 100, // Poke Ball catch odds; 10000 = always catch
   encounterPercent: 100, // how often wild Pokemon appear in grass, caves and water
   clockMode: 'real', // 'real' | 'shift' | 'lock'
   clockShiftHours: 0, // clockMode 'shift': hours added to the real time
@@ -150,6 +151,7 @@ function cleanRules(input) {
   const int = (value, min, max) => Math.min(max, Math.max(min, Math.round(Number(value))));
   if (Number.isFinite(Number(input.expPercent))) out.expPercent = int(input.expPercent, 0, 1000);
   if (Number.isFinite(Number(input.moneyPercent))) out.moneyPercent = int(input.moneyPercent, 0, 1000);
+  if (Number.isFinite(Number(input.catchPercent))) out.catchPercent = int(input.catchPercent, 0, 10000);
   if (Number.isFinite(Number(input.encounterPercent))) out.encounterPercent = int(input.encounterPercent, 0, 400);
   if (['real', 'shift', 'lock'].includes(input.clockMode)) out.clockMode = input.clockMode;
   if (Number.isFinite(Number(input.clockShiftHours))) out.clockShiftHours = int(input.clockShiftHours, -23, 23);

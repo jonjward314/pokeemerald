@@ -51,6 +51,14 @@
           <div class="number-row"><input type="number" name="moneyPercent" min="0" max="1000" step="10" /> % of normal</div>
         </fieldset>
 
+        <fieldset data-rule="catchPercent">
+          <legend>Catching Pokémon</legend>
+          <label class="override"><input type="checkbox" data-override /> Set for this player</label>
+          <div class="presets" data-presets="50,100,150,200,300,500,10000"></div>
+          <div class="number-row"><input type="number" name="catchPercent" min="0" max="10000" step="10" /> % of normal</div>
+          <p class="hint">How likely a thrown Poké Ball is to catch. "Always" catches every time; 0% makes balls always fail. The Master Ball always works.</p>
+        </fieldset>
+
         <fieldset data-rule="encounterPercent">
           <legend>Wild Pokémon encounters</legend>
           <label class="override"><input type="checkbox" data-override /> Set for this player</label>

@@ -363,7 +363,7 @@ const RULES_REFRESH_MS = 5 * 60 * 1000;
 const SECONDS_1970_TO_2000 = 946684800;
 const screenEl = document.querySelector('#screen');
 let gameRules = {
-  expPercent: 100, moneyPercent: 100, encounterPercent: 100,
+  expPercent: 100, moneyPercent: 100, encounterPercent: 100, catchPercent: 100,
   clockMode: 'real', clockShiftHours: 0, clockLockHour: 12, dayNight: true,
 };
 let rulesVersion = 0;
@@ -402,6 +402,7 @@ function writeGameRules() {
   view.setUint16(address + 0x06, gameRules.moneyPercent, true);
   view.setUint16(address + 0x08, gameRules.encounterPercent, true);
   view.setUint8(address + 0x0a, gameRules.dayNight ? 1 : 0);
+  view.setUint16(address + 0x10, gameRules.catchPercent ?? 100, true);
   writeEncounterOverrides(view);
   writeGameClock();
 }

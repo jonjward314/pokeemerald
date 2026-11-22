@@ -17,6 +17,8 @@ struct WasmRules
     /*0x0A*/ u8 dayNight;          // 1 = report the time of day for the overworld tint
     /*0x0B*/ u8 padding;
     /*0x0C*/ u32 hostSeconds;      // local time as seconds since 2000-01-01 00:00; 0 = no clock
+    /*0x10*/ u16 catchPercent;     // Poke Ball catch odds, 100 = normal, 10000 = always catch
+    /*0x12*/ u16 padding2;
 };
 
 extern struct WasmRules gWasmRules;
@@ -41,6 +43,7 @@ extern struct WasmEncounterOverride gWasmEncounterOverrides[WASM_ENCOUNTER_OVERR
 
 u32 WasmApplyExpRule(u32 exp);
 u32 WasmApplyMoneyRule(u32 money);
+u32 WasmApplyCatchRule(u32 odds);
 u32 WasmApplyEncounterRule(u32 encounterRate);
 u16 WasmOverrideWildSpecies(u16 species);
 bool8 WasmRtcAvailable(void);

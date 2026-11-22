@@ -10009,6 +10009,9 @@ static void Cmd_handleballthrow(void)
                 odds = (odds * 15) / 10;
         }
 
+#if WASM
+        odds = WasmApplyCatchRule(odds);
+#endif
         if (gLastUsedItem != ITEM_SAFARI_BALL)
         {
             if (gLastUsedItem == ITEM_MASTER_BALL)

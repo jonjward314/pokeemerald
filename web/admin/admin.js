@@ -4,6 +4,7 @@
 const RULE_KEYS = {
   expPercent: ['expPercent'],
   moneyPercent: ['moneyPercent'],
+  catchPercent: ['catchPercent'],
   encounterPercent: ['encounterPercent'],
   clock: ['clockMode', 'clockShiftHours', 'clockLockHour'],
   dayNight: ['dayNight'],
@@ -47,7 +48,7 @@ function buildStaticControls() {
     for (const value of holder.dataset.presets.split(',')) {
       const button = document.createElement('button');
       button.type = 'button';
-      button.textContent = value === '0' ? 'Off' : `${Number(value) / 100}x`;
+      button.textContent = value === '0' ? 'Off' : value === '10000' ? 'Always' : `${Number(value) / 100}x`;
       button.dataset.value = value;
       button.addEventListener('click', () => {
         input.value = value;
@@ -124,6 +125,7 @@ function renderForm() {
   form.elements.expPercent.value = values.expPercent;
   form.elements.moneyPercent.value = values.moneyPercent;
   form.elements.encounterPercent.value = values.encounterPercent;
+  form.elements.catchPercent.value = values.catchPercent ?? 100;
   form.elements.clockMode.value = values.clockMode;
   form.elements.clockShiftHours.value = values.clockShiftHours;
   form.elements.clockLockHour.value = String(values.clockLockHour);
@@ -144,6 +146,7 @@ function collectRules() {
     expPercent: Number(form.elements.expPercent.value),
     moneyPercent: Number(form.elements.moneyPercent.value),
     encounterPercent: Number(form.elements.encounterPercent.value),
+    catchPercent: Number(form.elements.catchPercent.value),
     clockMode: form.elements.clockMode.value || 'real',
     clockShiftHours: Number(form.elements.clockShiftHours.value) || 0,
     clockLockHour: Number(form.elements.clockLockHour.value) || 0,

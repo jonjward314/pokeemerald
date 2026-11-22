@@ -483,3 +483,7 @@ html.pc .more[open] summary { background: transparent; }
 .player-control { margin-top: 12px; }
 .player-control[hidden] { display: none; }
 .player-control output { color: var(--mint); }
+
+.trade-evo-control { margin-top: 12px; }
+.trade-evo-list { display: grid; gap: 8px; }
+.trade-evo-list:empty { display: none; }

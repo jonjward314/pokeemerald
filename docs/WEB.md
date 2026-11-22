@@ -192,6 +192,16 @@ Each extra player is stored under `email#id`, and the `profiles` table holds
 their names. The page sends the chosen player as an `X-Profile` header (or
 `?profile=` on the link WebSocket).
 
+## Trade evolutions without a partner
+
+Kadabra, Machoke, Graveler, Haunter, and Pokémon holding a trade item (Onix
+with a Metal Coat, Seadra with a Dragon Scale, and so on) only evolve when
+traded. **More → Trade evolution** lists party Pokémon that would evolve if
+traded now. Tap one while you can walk around and the game's own evolution
+scene plays, as if it had just come back from a trade. A trade item is used
+up, just like a real trade. Pressing B during the scene stops it, as usual.
+The game side is `src/wasm_trade_evo.c`.
+
 ## Known gaps
 
 - The Union Room, wireless games and Record Corner over the wireless adapter

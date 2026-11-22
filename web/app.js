@@ -1269,6 +1269,44 @@ document.addEventListener('pointerdown', (event) => {
 });
 moreMenu.addEventListener('toggle', () => { if (!moreMenu.open) cancelRebind(); });
 
+// ---- Trade evolution without a partner (src/wasm_trade_evo.c) ------------
+const tradeEvoList = document.getElementById('trade-evo-list');
+const tradeEvoNote = document.getElementById('trade-evo-note');
+const TRADE_EVO_HELP = tradeEvoNote?.textContent || '';
+
+function readAscii(ptr) {
+  let text = '';
+  for (let i = ptr >>> 0; u8[i]; i++) text += String.fromCharCode(u8[i]);
+  return text;
+}
+
+function refreshTradeEvolutions() {
+  if (!tradeEvoList || !instance?.exports.WasmTradeEvoTarget) return;
+  const buttons = [];
+  for (let slot = 0; slot < 6; slot++) {
+    if (!instance.exports.WasmTradeEvoTarget(slot)) continue;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = readAscii(instance.exports.WasmTradeEvoLabel(slot));
+    button.addEventListener('click', () => {
+      const result = instance.exports.WasmTradeEvolve(slot);
+      if (result === 0) {
+        tradeEvoNote.textContent = TRADE_EVO_HELP;
+        moreMenu.open = false;
+      } else if (result === 1) {
+        tradeEvoNote.textContent = 'Close this menu and finish what you are doing in the game (talking, a battle, a menu), then try again while you can walk around.';
+      } else {
+        refreshTradeEvolutions();
+      }
+    });
+    buttons.push(button);
+  }
+  tradeEvoList.replaceChildren(...buttons);
+  if (!buttons.length) tradeEvoNote.textContent = TRADE_EVO_HELP;
+}
+
+moreMenu.addEventListener('toggle', () => { if (moreMenu.open) refreshTradeEvolutions(); });
+
 const KEY_LABELS = [
   ['a', 'A'], ['b', 'B'], ['l', 'L'], ['r', 'R'], ['start', 'Start'], ['select', 'Select'],
   ['up', 'Up'], ['down', 'Down'], ['left', 'Left'], ['right', 'Right'],

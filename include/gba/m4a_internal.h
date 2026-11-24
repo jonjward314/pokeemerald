@@ -1,6 +1,11 @@
 #ifndef GUARD_GBA_M4A_INTERNAL_H
 #define GUARD_GBA_M4A_INTERNAL_H
 
+#if WASM
+// The web build runs the C port of the sound engine from pokeemerald-multiplatform.
+#include "wasm_audio/m4a_internal.h"
+#else
+
 #include "gba/gba.h"
 
 // ASCII encoding of 'Smsh' in reverse
@@ -497,5 +502,7 @@ void ply_xleng(struct MusicPlayerInfo *, struct MusicPlayerTrack *);
 void ply_xswee(struct MusicPlayerInfo *, struct MusicPlayerTrack *);
 void ply_xwait(struct MusicPlayerInfo *, struct MusicPlayerTrack *);
 void ply_xcmd_0D(struct MusicPlayerInfo *, struct MusicPlayerTrack *);
+
+#endif // WASM
 
 #endif // GUARD_GBA_M4A_INTERNAL_H

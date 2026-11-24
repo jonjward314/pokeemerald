@@ -21,6 +21,9 @@
 #include "constants/items.h"
 #include "constants/layouts.h"
 #include "constants/weather.h"
+#if WASM
+#include "wasm_rules.h"
+#endif
 
 extern const u8 EventScript_RepelWoreOff[];
 
@@ -451,6 +454,13 @@ static bool8 TryGenerateWildMon(const struct WildPokemonInfo *wildMonInfo, u8 ar
     if (gMapHeader.mapLayoutId != LAYOUT_BATTLE_FRONTIER_BATTLE_PIKE_ROOM_WILD_MONS && flags & WILD_CHECK_KEEN_EYE && !IsAbilityAllowingEncounter(level))
         return FALSE;
 
+#if WASM
+    if (area != WILD_AREA_ROCKS)
+    {
+        CreateWildMon(WasmOverrideWildSpecies(wildMonInfo->wildPokemon[wildMonIndex].species), level);
+        return TRUE;
+    }
+#endif
     CreateWildMon(wildMonInfo->wildPokemon[wildMonIndex].species, level);
     return TRUE;
 }
@@ -523,6 +533,9 @@ static bool8 WildEncounterCheck(u32 encounterRate, bool8 ignoreAbility)
         else if (ability == ABILITY_SAND_VEIL && gSaveBlock1Ptr->weather == WEATHER_SANDSTORM)
             encounterRate /= 2;
     }
+#if WASM
+    encounterRate = WasmApplyEncounterRule(encounterRate);
+#endif
     if (encounterRate > MAX_ENCOUNTER_RATE)
         encounterRate = MAX_ENCOUNTER_RATE;
     return EncounterOddsCheck(encounterRate);

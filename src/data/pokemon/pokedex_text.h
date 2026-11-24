@@ -2319,3 +2319,9 @@ const u8 gDeoxysPokedexText[] = _(
     "extraterrestrial virus exposed to a laser\n"
     "beam. Its body is configured for superior\n"
     "agility and speed.");
+
+const u8 gObsidilloPokedexText[] = _(
+    "It rolls through the falling ash on\n"
+    "ROUTE 113 and gobbles it up. Its inner\n"
+    "fire turns the ash into glass, which\n"
+    "grows into the shiny panes on its back.");

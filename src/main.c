@@ -56,6 +56,9 @@ const IntrFunc gIntrTableTemplate[] =
 };
 
 #define INTR_COUNT ((int)(sizeof(gIntrTableTemplate)/sizeof(IntrFunc)))
+#if WASM
+#define GBA_CYCLES_PER_FRAME 280896
+#endif
 
 static u16 sUnusedVar; // Never read
 
@@ -76,6 +79,10 @@ static EWRAM_DATA u16 sTrainerId = 0;
 static void UpdateLinkAndCallCallbacks(void);
 static void InitMainCallbacks(void);
 static void CallCallbacks(void);
+void WasmRunFrame(void);
+#if WASM
+void WasmDmaStop0(void);
+#endif
 #ifdef BUGFIX
 static void SeedRngWithRtc(void);
 #endif
@@ -99,10 +106,14 @@ void AgbMain(void)
     InitKeys();
     InitIntrHandlers();
     m4aSoundInit();
+#if WASM
+    gFlashMemoryPresent = TRUE;
+#else
     EnableVCountIntrAtLine150();
     InitRFU();
     RtcInit();
     CheckForFlashMemory();
+#endif
     InitMainCallbacks();
     InitMapMusic();
 #ifdef BUGFIX
@@ -128,44 +139,65 @@ void AgbMain(void)
     AGBPrintInit();
 #endif
 #endif
+#if WASM
+    return;
+#else
     for (;;)
+        WasmRunFrame();
+#endif
+}
+
+#if WASM
+void WasmDmaStop0(void)
+{
+    DmaStop(0);
+}
+#endif
+
+void WasmRunFrame(void)
+{
+    ReadKeys();
+
+    if (gSoftResetDisabled == FALSE
+     && JOY_HELD_RAW(A_BUTTON)
+     && JOY_HELD_RAW(B_START_SELECT) == B_START_SELECT)
     {
-        ReadKeys();
+        rfu_REQ_stopMode();
+        rfu_waitREQComplete();
+        DoSoftReset();
+    }
 
-        if (gSoftResetDisabled == FALSE
-         && JOY_HELD_RAW(A_BUTTON)
-         && JOY_HELD_RAW(B_START_SELECT) == B_START_SELECT)
-        {
-            rfu_REQ_stopMode();
-            rfu_waitREQComplete();
-            DoSoftReset();
-        }
+    if (Overworld_SendKeysToLinkIsRunning() == TRUE)
+    {
+        gLinkTransferringData = TRUE;
+        UpdateLinkAndCallCallbacks();
+        gLinkTransferringData = FALSE;
+    }
+    else
+    {
+        gLinkTransferringData = FALSE;
+        UpdateLinkAndCallCallbacks();
 
-        if (Overworld_SendKeysToLinkIsRunning() == TRUE)
+        if (Overworld_RecvKeysFromLinkIsRunning() == TRUE)
         {
+            gMain.newKeys = 0;
+            ClearSpriteCopyRequests();
             gLinkTransferringData = TRUE;
             UpdateLinkAndCallCallbacks();
             gLinkTransferringData = FALSE;
         }
-        else
-        {
-            gLinkTransferringData = FALSE;
-            UpdateLinkAndCallCallbacks();
-
-            if (Overworld_RecvKeysFromLinkIsRunning() == TRUE)
-            {
-                gMain.newKeys = 0;
-                ClearSpriteCopyRequests();
-                gLinkTransferringData = TRUE;
-                UpdateLinkAndCallCallbacks();
-                gLinkTransferringData = FALSE;
-            }
-        }
-
-        PlayTimeCounter_Update();
-        MapMusicMain();
-        WaitForVBlank();
     }
+
+    PlayTimeCounter_Update();
+    MapMusicMain();
+#if WASM
+    // On the GBA, line 150's V-count interrupt hands the last mixed audio to
+    // the sound hardware just before V-blank mixes the next frame.
+    m4aSoundVSync();
+    VBlankIntr();
+#else
+    WaitForVBlank();
+#endif
 }
 
 static void UpdateLinkAndCallCallbacks(void)
@@ -339,6 +371,13 @@ void SetSerialCallback(IntrCallback callback)
 
 static void VBlankIntr(void)
 {
+#if WASM
+    // Hardware timers advance independently on GBA. Approximate Timer 1 at
+    // frame boundaries so timing-based RNG seeds still vary with user input.
+    if (REG_TM1CNT_H & TIMER_ENABLE)
+        REG_TM1CNT_L = (u16)(REG_TM1CNT_L + GBA_CYCLES_PER_FRAME);
+#endif
+
     if (gWirelessCommType != 0)
         RfuVSync();
     else if (gLinkVSyncDisabled == FALSE)

@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#123029" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Emerald" />
+  <title>Emerald</title>
+  <link rel="manifest" href="web/manifest.webmanifest" crossorigin="use-credentials" />
+  <link rel="apple-touch-icon" href="web/icon-192.png" />
+  <link rel="icon" href="web/icon-192.png" />
+  <link rel="stylesheet" href="web/style.css" />
+</head>
+<body>
+  <main class="shell" aria-label="Emerald">
+    <section class="display-panel" aria-label="Game display">
+      <canvas id="screen" width="240" height="160" aria-label="Game screen"></canvas>
+      <div class="link-badge" id="link-badge" role="status" hidden></div>
+      <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+        <filter id="tint-evening" color-interpolation-filters="sRGB">
+          <feColorMatrix type="matrix" values="1 0.08 0 0 0.02  0 0.78 0 0 0  0 0 0.62 0 0  0 0 0 1 0" />
+        </filter>
+        <filter id="tint-night" color-interpolation-filters="sRGB">
+          <feColorMatrix type="matrix" values="0.30 0.06 0.04 0 0  0.05 0.40 0.05 0 0.01  0.08 0.12 0.62 0 0.05  0 0 0 1 0" />
+        </filter>
+      </svg>
+    </section>
+
+    <section class="pad" aria-label="Controls">
+      <div class="shoulders">
+        <button data-key="l" aria-label="L">L</button>
+        <button data-key="r" aria-label="R">R</button>
+      </div>
+
+      <div class="dpad" aria-label="Directional pad">
+        <button data-key="up" aria-label="Up" tabindex="-1"></button>
+        <button data-key="left" aria-label="Left" tabindex="-1"></button>
+        <span class="dpad-center" aria-hidden="true"></span>
+        <button data-key="right" aria-label="Right" tabindex="-1"></button>
+        <button data-key="down" aria-label="Down" tabindex="-1"></button>
+      </div>
+
+      <div class="face" aria-label="Action buttons">
+        <button data-key="b" class="btn-b">B</button>
+        <button data-key="a" class="btn-a">A</button>
+      </div>
+
+      <div class="system" aria-label="Start and Select">
+        <button data-key="select">SELECT</button>
+        <button data-key="start">START</button>
+      </div>
+    </section>
+
+    <details class="more">
+      <summary><span class="menu-icon" aria-hidden="true">☰ </span>More</summary>
+      <div class="status" id="cloud-status"></div>
+      <div class="status" id="status">loading…</div>
+      <div class="status" id="version"></div>
+
+      <div class="speed-control" aria-label="Speed controls">
+        <div class="speed-heading">Speed <output id="speed-value">1x</output></div>
+        <div class="speed-buttons">
+          <button type="button" data-speed="0.5">Slower</button>
+          <button type="button" data-speed="2">Faster</button>
+          <button type="button" data-speed="1">Normal</button>
+          <button type="button" data-speed="unlimited">Max</button>
+        </div>
+      </div>
+
+      <div class="utility-controls" aria-label="Save and display controls">
+        <button id="download-save" type="button">Back up save</button>
+        <label class="upload-save" for="upload-save">Restore save</label>
+        <button id="sound-toggle" type="button">Sound: on</button>
+        <button id="fullscreen" type="button">Big Picture</button>
+        <input id="upload-save" type="file" accept=".sav,.srm,application/octet-stream" />
+      </div>
+
+      <div class="player-control" aria-label="Player" hidden>
+        <div class="speed-heading">Playing as <output id="player-name"></output></div>
+        <button type="button" id="switch-player">Switch player</button>
+      </div>
+
+      <div class="trade-evo-control" aria-label="Trade evolution">
+        <div class="speed-heading">Trade evolution</div>
+        <div class="trade-evo-list" id="trade-evo-list"></div>
+        <p class="keys" id="trade-evo-note">Pokémon that evolve by trading (like Kadabra, or Onix holding a Metal Coat) show up here, so you can evolve them without a partner.</p>
+      </div>
+
+      <div class="link-control" aria-label="Link cable">
+        <div class="speed-heading">Link cable
+          <select id="link-cable" aria-label="Which link cable">
+            <option value="1">Cable 1</option>
+            <option value="2">Cable 2</option>
+            <option value="3">Cable 3</option>
+          </select>
+        </div>
+        <div class="status" id="link-status"></div>
+        <p class="keys">To battle or trade, both players go upstairs in any Pokémon Center and talk to the Cable Club lady at the same time, on the same cable number.</p>
+      </div>
+
+      <div class="layout-control" aria-label="Layout">
+        <div class="speed-heading">Layout</div>
+        <div class="layout-buttons">
+          <button type="button" data-layout="auto">Auto</button>
+          <button type="button" data-layout="pc">Screen only</button>
+          <button type="button" data-layout="touch">Buttons</button>
+        </div>
+      </div>
+
+      <div class="key-config" aria-label="Keyboard controls">
+        <div class="speed-heading">Keyboard <button type="button" id="keys-reset" class="text-button">Reset</button></div>
+        <p class="key-help" id="key-help">Click a button, then press the key you want for it. Esc opens and closes this menu.</p>
+        <div class="key-grid" id="key-grid"></div>
+      </div>
+
+      <p class="keys">When you save in the game, it is kept in this browser and, on the family site, in your account too.</p>
+    </details>
+  </main>
+  <div class="player-picker" id="player-picker" role="dialog" aria-modal="true" aria-labelledby="player-picker-title" hidden>
+    <div class="player-card">
+      <h1 id="player-picker-title">Who's playing?</h1>
+      <div class="player-list"></div>
+      <form class="player-add">
+        <input type="text" maxlength="12" placeholder="New player's name" aria-label="New player's name" autocomplete="off" />
+        <button type="submit">Add</button>
+      </form>
+      <p class="player-error" role="alert"></p>
+      <p class="player-note">Each player has their own game and save.</p>
+    </div>
+  </div>
+  <script type="module" src="web/app.js"></script>
+</body>
+</html>

@@ -28,8 +28,11 @@ tools/compresSmol/
 *.bat
 *.dump
 *.sa*
+*.py[cod]
+__pycache__/
 Thumbs.db
 build/
+dist/
 .DS_Store
 *.ddump
 .idea/
@@ -42,6 +45,14 @@ prefabs.json
 *.diff
 *.sym
 *.js
+!web/*.js
+!worker/*.js
 /pokeemerald-*.png
 /pokeemerald_modern-*.png
+/wasm-replay-output/
 .porydaw/
+
+# Cloudflare local dev
+.dev.vars
+.wrangler/
+!web/admin/*.js

@@ -5,6 +5,9 @@ COMMON_DATA struct Task gTasks[NUM_TASKS] = {0};
 
 static void InsertTask(u8 newTaskId);
 static u8 FindFirstActiveTask(void);
+#if WASM
+static u8 sFirstActiveTask;
+#endif
 
 void ResetTasks(void)
 {
@@ -22,6 +25,9 @@ void ResetTasks(void)
 
     gTasks[0].prev = HEAD_SENTINEL;
     gTasks[NUM_TASKS - 1].next = TAIL_SENTINEL;
+#if WASM
+    sFirstActiveTask = NUM_TASKS;
+#endif
 }
 
 u8 CreateTask(TaskFunc func, u8 priority)
@@ -53,6 +59,9 @@ static void InsertTask(u8 newTaskId)
         // The new task is the only task.
         gTasks[newTaskId].prev = HEAD_SENTINEL;
         gTasks[newTaskId].next = TAIL_SENTINEL;
+#if WASM
+        sFirstActiveTask = newTaskId;
+#endif
         return;
     }
 
@@ -66,6 +75,10 @@ static void InsertTask(u8 newTaskId)
             gTasks[newTaskId].next = taskId;
             if (gTasks[taskId].prev != HEAD_SENTINEL)
                 gTasks[gTasks[taskId].prev].next = newTaskId;
+#if WASM
+            else
+                sFirstActiveTask = newTaskId;
+#endif
             gTasks[taskId].prev = newTaskId;
             return;
         }
@@ -86,6 +99,10 @@ void DestroyTask(u8 taskId)
     if (gTasks[taskId].isActive)
     {
         gTasks[taskId].isActive = FALSE;
+#if WASM
+        if (sFirstActiveTask == taskId)
+            sFirstActiveTask = gTasks[taskId].next == TAIL_SENTINEL ? NUM_TASKS : gTasks[taskId].next;
+#endif
 
         if (gTasks[taskId].prev == HEAD_SENTINEL)
         {
@@ -123,6 +140,9 @@ void RunTasks(void)
 
 static u8 FindFirstActiveTask(void)
 {
+#if WASM
+    return sFirstActiveTask;
+#else
     u8 taskId;
 
     for (taskId = 0; taskId < NUM_TASKS; taskId++)
@@ -130,6 +150,7 @@ static u8 FindFirstActiveTask(void)
             break;
 
     return taskId;
+#endif
 }
 
 void TaskDummy(u8 taskId)
@@ -140,8 +161,7 @@ void SetTaskFuncWithFollowupFunc(u8 taskId, TaskFunc func, TaskFunc followupFunc
 {
     u8 followupFuncIndex = NUM_TASK_DATA - 2; // Should be const.
 
-    gTasks[taskId].data[followupFuncIndex] = (s16)((u32)followupFunc);
-    gTasks[taskId].data[followupFuncIndex + 1] = (s16)((u32)followupFunc >> 16); // Store followupFunc as two half-words in the data array.
+    SetWordTaskArg(taskId, followupFuncIndex, (u32)(uintptr_t)followupFunc);
     gTasks[taskId].func = func;
 }
 
@@ -149,7 +169,7 @@ void SwitchTaskToFollowupFunc(u8 taskId)
 {
     u8 followupFuncIndex = NUM_TASK_DATA - 2; // Should be const.
 
-    gTasks[taskId].func = (TaskFunc)((u16)(gTasks[taskId].data[followupFuncIndex]) | (gTasks[taskId].data[followupFuncIndex + 1] << 16));
+    gTasks[taskId].func = (TaskFunc)(uintptr_t)GetWordTaskArg(taskId, followupFuncIndex);
 }
 
 bool8 FuncIsActiveTask(TaskFunc func)
@@ -198,7 +218,7 @@ void SetWordTaskArg(u8 taskId, u8 dataElem, u32 value)
 u32 GetWordTaskArg(u8 taskId, u8 dataElem)
 {
     if (dataElem < NUM_TASK_DATA - 1)
-        return (u16)gTasks[taskId].data[dataElem] | (gTasks[taskId].data[dataElem + 1] << 16);
+        return (u16)gTasks[taskId].data[dataElem] | ((u32)(u16)gTasks[taskId].data[dataElem + 1] << 16);
     else
         return 0;
 }

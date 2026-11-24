@@ -1148,7 +1148,11 @@ void CB2_InitCopyrightScreenAfterBootup(void)
 {
     if (!SetUpCopyrightScreen())
     {
+#if WASM
+        SetSaveBlocksPointers(0);
+#else
         SetSaveBlocksPointers(GetSaveBlocksPointersBaseOffset());
+#endif
         ResetMenuAndMonGlobals();
         Save_ResetSaveCounters();
         LoadGameSave(SAVE_NORMAL);

@@ -1,0 +1,42 @@
+# Cloudflare Worker that serves the game (dist/cloudflare) and stores saves
+# in a D1 database. Setup steps are in docs/WEB.md.
+name = "emerald"
+main = "worker/index.js"
+account_id = "7ef521bc4d51ffec01f0c8d0f654cb43"
+compatibility_date = "2025-06-01"
+# Served at emerald.<account>.workers.dev; IONOS redirects emerald.wardtechnet.com here.
+workers_dev = true
+preview_urls = false
+
+[build]
+command = "make wrangler-site"
+watch_dir = ["web", "src", "include", "data", "graphics", "sound", "tools", "Makefile", "worker"]
+
+[assets]
+directory = "./dist/cloudflare"
+binding = "ASSETS"
+html_handling = "auto-trailing-slash"
+not_found_handling = "none"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "emerald-saves"
+database_id = "dc6f7d14-3c60-4fca-9c94-29bb0e7c6b49"
+
+# The Cable Club link cable (worker/link.js): one Durable Object per cable.
+[[durable_objects.bindings]]
+name = "LINK"
+class_name = "LinkCable"
+
+[[migrations]]
+tag = "v1-link-cable"
+new_sqlite_classes = ["LinkCable"]
+
+[vars]
+# From Zero Trust > Settings > Custom pages, e.g. "yourfamily.cloudflareaccess.com".
+ACCESS_TEAM_DOMAIN = "sparkling-mountain-9592.cloudflareaccess.com"
+# From Zero Trust > Access > Applications > (your app) > Overview > Application Audience (AUD) Tag.
+ACCESS_AUD = "87b4c83ad4db240e8aff2398fbc776b0b433f2f66fea5f332c15e15ccd8ff8e0"
+# Who can open /admin: SHA-256 of each admin's sign-in email, lowercase,
+# comma-separated. Make one with: printf '%s' you@example.com | sha256sum
+ADMIN_EMAIL_SHA256 = "54f8999415812ab35467f99941390f007a611771a17e548c0b8aae855f23fa4c"

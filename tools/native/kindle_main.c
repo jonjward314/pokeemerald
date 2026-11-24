@@ -1,0 +1,1016 @@
+#include "native_engine.h"
+
+#include <math.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+
+#include <errno.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <time.h>
+#include <unistd.h>
+
+#if defined(__linux__)
+#include <dirent.h>
+#include <linux/fb.h>
+#include <linux/input.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#endif
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+#define DISPLAY_WIDTH 240
+#define DISPLAY_HEIGHT 160
+#define DEFAULT_SAVE_PATH "build/native/pokeemerald-kindle.sav"
+#define SAVE_FLUSH_SECONDS 1.0
+#define DISPLAY_FPS 60
+#define MIN_DISPLAY_FPS 6
+#define MAX_INTERNAL_FRAME_SECONDS (1.0 / MIN_DISPLAY_FPS)
+
+#define BUTTON_A      (1u << 0)
+#define BUTTON_B      (1u << 1)
+#define BUTTON_SELECT (1u << 2)
+#define BUTTON_START  (1u << 3)
+#define BUTTON_RIGHT  (1u << 4)
+#define BUTTON_LEFT   (1u << 5)
+#define BUTTON_UP     (1u << 6)
+#define BUTTON_DOWN   (1u << 7)
+#define BUTTON_R      (1u << 8)
+#define BUTTON_L      (1u << 9)
+#define BUTTON_EXIT   (1u << 10)
+#define BUTTON_SPEED  (1u << 11)
+#define FRONTEND_BUTTONS (BUTTON_EXIT | BUTTON_SPEED)
+
+#if defined(__linux__)
+
+#define DEFAULT_FB_PATH "/dev/fb0"
+#define DEFAULT_INPUT_PATH "/dev/input/event1"
+#define DEFAULT_KINDLE_DISPLAY_FPS 4.0
+#define INPUT_POLL_SECONDS 0.025
+#define MAX_INPUT_DEVICES 8
+#define MAX_TOUCHES 8
+#define MAX_UI_BUTTONS 12
+#define MAX_BATTLE_SHORTCUTS 10
+#define BATTLE_SHORTCUT_MOVE 1
+#define BATTLE_SHORTCUT_PARTY 2
+
+#ifndef EVIOCGABS
+#define EVIOCGABS(abs) _IOR('E', 0x40 + (abs), struct input_absinfo)
+#endif
+#ifndef EVIOCGRAB
+#define EVIOCGRAB _IOW('E', 0x90, int)
+#endif
+
+#ifndef MXCFB_SEND_UPDATE
+struct mxcfb_rect {
+    uint32_t top;
+    uint32_t left;
+    uint32_t width;
+    uint32_t height;
+};
+
+struct mxcfb_alt_buffer_data {
+    uint32_t phys_addr;
+    uint32_t width;
+    uint32_t height;
+    struct mxcfb_rect alt_update_region;
+};
+
+struct mxcfb_update_data {
+    struct mxcfb_rect update_region;
+    uint32_t waveform_mode;
+    uint32_t update_mode;
+    uint32_t update_marker;
+    int32_t temp;
+    uint32_t flags;
+    struct mxcfb_alt_buffer_data alt_buffer_data;
+};
+
+#define MXCFB_SEND_UPDATE _IOW('F', 0x2E, struct mxcfb_update_data)
+#endif
+
+struct hwtcon_rect {
+    uint32_t top;
+    uint32_t left;
+    uint32_t width;
+    uint32_t height;
+};
+
+struct hwtcon_update_data {
+    struct hwtcon_rect update_region;
+    uint32_t waveform_mode;
+    uint32_t update_mode;
+    uint32_t update_marker;
+    unsigned int flags;
+    int dither_mode;
+};
+
+#define HWTCON_SEND_UPDATE 1076119086
+
+#ifndef WAVEFORM_MODE_AUTO
+#define WAVEFORM_MODE_AUTO 257u
+#endif
+#ifndef HWTCON_WAVEFORM_MODE_AUTO
+#define HWTCON_WAVEFORM_MODE_AUTO 257u
+#endif
+#ifndef UPDATE_MODE_PARTIAL
+#define UPDATE_MODE_PARTIAL 0u
+#endif
+#ifndef UPDATE_MODE_FULL
+#define UPDATE_MODE_FULL 1u
+#endif
+#ifndef TEMP_USE_AMBIENT
+#define TEMP_USE_AMBIENT 0x1000
+#endif
+
+typedef struct {
+    int x;
+    int y;
+    int width;
+    int height;
+} RectI;
+
+typedef struct {
+    const char *label;
+    RectI rect;
+    uint32_t mask;
+} KindleButton;
+
+typedef struct {
+    RectI screen;
+    RectI status;
+    int statusScale;
+    KindleButton buttons[MAX_UI_BUTTONS];
+    size_t buttonCount;
+} KindleLayout;
+
+typedef struct {
+    char label[13];
+    RectI rect;
+    uint32_t index;
+    uint32_t type;
+} BattleShortcut;
+
+typedef struct {
+    BattleShortcut buttons[MAX_BATTLE_SHORTCUTS];
+    RectI back;
+    size_t count;
+    int pressedIndex;
+    uint32_t signature;
+} BattleShortcutLayout;
+
+typedef struct {
+    int fd;
+    uint8_t *data;
+    size_t size;
+    struct fb_fix_screeninfo fix;
+    struct fb_var_screeninfo var;
+    int width;
+    int height;
+    int bytesPerPixel;
+    bool warnedRefresh;
+    bool useHwtcon;
+} Framebuffer;
+
+typedef struct {
+    int fd;
+    int minX;
+    int maxX;
+    int minY;
+    int maxY;
+    int x;
+    int y;
+    bool down;
+    bool grabbed;
+    uint32_t keyHeld;
+} InputDevice;
+
+static volatile sig_atomic_t gQuit;
+
+static void handle_signal(int signal)
+{
+    (void)signal;
+    gQuit = 1;
+}
+
+static double monotonic_seconds(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + (double)ts.tv_nsec / 1000000000.0;
+}
+
+static void sleep_seconds(double seconds)
+{
+    if (seconds <= 0.0)
+        return;
+
+    struct timespec ts;
+    ts.tv_sec = (time_t)seconds;
+    ts.tv_nsec = (long)((seconds - (double)ts.tv_sec) * 1000000000.0);
+    nanosleep(&ts, NULL);
+}
+
+static bool open_framebuffer(Framebuffer *fb, const char *path)
+{
+    memset(fb, 0, sizeof(*fb));
+    fb->fd = open(path, O_RDWR);
+    if (fb->fd < 0) {
+        fprintf(stderr, "open %s: %s\n", path, strerror(errno));
+        return false;
+    }
+
+    if (ioctl(fb->fd, FBIOGET_FSCREENINFO, &fb->fix) < 0 || ioctl(fb->fd, FBIOGET_VSCREENINFO, &fb->var) < 0) {
+        fprintf(stderr, "query %s: %s\n", path, strerror(errno));
+        close(fb->fd);
+        return false;
+    }
+
+    fb->width = (int)fb->var.xres;
+    fb->height = (int)fb->var.yres;
+    fb->bytesPerPixel = (int)((fb->var.bits_per_pixel + 7) / 8);
+    fb->useHwtcon = strstr(fb->fix.id, "hwtcon") != NULL;
+    fb->size = fb->fix.smem_len;
+    fb->data = mmap(NULL, fb->size, PROT_READ | PROT_WRITE, MAP_SHARED, fb->fd, 0);
+    if (fb->data == MAP_FAILED) {
+        fprintf(stderr, "mmap %s: %s\n", path, strerror(errno));
+        close(fb->fd);
+        return false;
+    }
+
+    return true;
+}
+
+static void close_framebuffer(Framebuffer *fb)
+{
+    if (fb->data && fb->data != MAP_FAILED)
+        munmap(fb->data, fb->size);
+    if (fb->fd >= 0)
+        close(fb->fd);
+}
+
+static bool refresh_hwtcon(Framebuffer *fb, RectI region, bool full, int *error)
+{
+    struct hwtcon_update_data update;
+    memset(&update, 0, sizeof(update));
+    update.update_region.left = (uint32_t)region.x;
+    update.update_region.top = (uint32_t)region.y;
+    update.update_region.width = (uint32_t)region.width;
+    update.update_region.height = (uint32_t)region.height;
+    update.waveform_mode = HWTCON_WAVEFORM_MODE_AUTO;
+    update.update_mode = full ? UPDATE_MODE_FULL : UPDATE_MODE_PARTIAL;
+
+    if (ioctl(fb->fd, HWTCON_SEND_UPDATE, &update) == 0)
+        return true;
+
+    *error = errno;
+    return false;
+}
+
+static bool refresh_mxcfb(Framebuffer *fb, RectI region, bool full, int *error)
+{
+    struct mxcfb_update_data update;
+    memset(&update, 0, sizeof(update));
+    update.update_region.left = (uint32_t)region.x;
+    update.update_region.top = (uint32_t)region.y;
+    update.update_region.width = (uint32_t)region.width;
+    update.update_region.height = (uint32_t)region.height;
+    update.waveform_mode = WAVEFORM_MODE_AUTO;
+    update.update_mode = full ? UPDATE_MODE_FULL : UPDATE_MODE_PARTIAL;
+    update.temp = TEMP_USE_AMBIENT;
+
+    if (ioctl(fb->fd, MXCFB_SEND_UPDATE, &update) == 0)
+        return true;
+
+    *error = errno;
+    return false;
+}
+
+static bool refresh_eips(Framebuffer *fb, bool full)
+{
+    char command[160];
+    snprintf(command,
+             sizeof(command),
+             "/usr/sbin/eips -s w=%d,h=%d %s >/dev/null 2>&1",
+             fb->width,
+             fb->height,
+             full ? "-f" : "");
+    return system(command) == 0;
+}
+
+static void refresh_framebuffer(Framebuffer *fb, RectI region, bool full)
+{
+    int hwtconError = 0;
+    int mxcfbError = 0;
+
+    if (fb->useHwtcon) {
+        if (refresh_hwtcon(fb, region, full, &hwtconError) || refresh_eips(fb, full))
+            return;
+    } else {
+        if (refresh_mxcfb(fb, region, full, &mxcfbError) || refresh_eips(fb, full))
+            return;
+    }
+
+    if (!fb->warnedRefresh) {
+        fprintf(stderr,
+                "warning: e-ink refresh failed: HWTCON=%s, MXCFB=%s; framebuffer writes may still be visible if auto-refresh is active\n",
+                hwtconError ? strerror(hwtconError) : "not used",
+                mxcfbError ? strerror(mxcfbError) : "not used");
+        fb->warnedRefresh = true;
+    }
+}
+
+static uint8_t rgba_to_gray(const uint8_t *rgba)
+{
+    return (uint8_t)(((uint32_t)rgba[0] * 77u + (uint32_t)rgba[1] * 150u + (uint32_t)rgba[2] * 29u) >> 8);
+}
+
+static void put_gray_pixel(Framebuffer *fb, int x, int y, uint8_t gray)
+{
+    if ((unsigned)x >= (unsigned)fb->width || (unsigned)y >= (unsigned)fb->height)
+        return;
+
+    uint8_t *pixel = fb->data + (size_t)(y + fb->var.yoffset) * fb->fix.line_length + (size_t)(x + fb->var.xoffset) * fb->bytesPerPixel;
+    switch (fb->var.bits_per_pixel) {
+    case 8:
+        pixel[0] = gray;
+        break;
+    case 16: {
+        uint16_t value = (uint16_t)(((gray >> 3) << 11) | ((gray >> 2) << 5) | (gray >> 3));
+        pixel[0] = value & 0xff;
+        pixel[1] = value >> 8;
+        break;
+    }
+    case 24:
+        pixel[0] = gray;
+        pixel[1] = gray;
+        pixel[2] = gray;
+        break;
+    case 32:
+        pixel[0] = gray;
+        pixel[1] = gray;
+        pixel[2] = gray;
+        pixel[3] = 0xff;
+        break;
+    default:
+        break;
+    }
+}
+
+static void fill_rect(Framebuffer *fb, RectI rect, uint8_t gray)
+{
+    int x0 = rect.x < 0 ? 0 : rect.x;
+    int y0 = rect.y < 0 ? 0 : rect.y;
+    int x1 = rect.x + rect.width > fb->width ? fb->width : rect.x + rect.width;
+    int y1 = rect.y + rect.height > fb->height ? fb->height : rect.y + rect.height;
+
+    for (int y = y0; y < y1; y++) {
+        for (int x = x0; x < x1; x++)
+            put_gray_pixel(fb, x, y, gray);
+    }
+}
+
+static void draw_rect_outline(Framebuffer *fb, RectI rect, int thickness, uint8_t gray)
+{
+    fill_rect(fb, (RectI){rect.x, rect.y, rect.width, thickness}, gray);
+    fill_rect(fb, (RectI){rect.x, rect.y + rect.height - thickness, rect.width, thickness}, gray);
+    fill_rect(fb, (RectI){rect.x, rect.y, thickness, rect.height}, gray);
+    fill_rect(fb, (RectI){rect.x + rect.width - thickness, rect.y, thickness, rect.height}, gray);
+}
+
+static uint8_t glyph_rows(char c, int row)
+{
+    static const uint8_t digits[10][7] = {
+        {14,17,19,21,25,17,14}, {4,12,4,4,4,4,14}, {14,17,1,2,4,8,31}, {30,1,1,14,1,1,30}, {2,6,10,18,31,2,2},
+        {31,16,30,1,1,17,14}, {6,8,16,30,17,17,14}, {31,1,2,4,8,8,8}, {14,17,17,14,17,17,14}, {14,17,17,15,1,2,12},
+    };
+    static const uint8_t letters[26][7] = {
+        {14,17,17,31,17,17,17}, {30,17,17,30,17,17,30}, {14,17,16,16,16,17,14}, {30,17,17,17,17,17,30}, {31,16,16,30,16,16,31},
+        {31,16,16,30,16,16,16}, {14,17,16,23,17,17,15}, {17,17,17,31,17,17,17}, {14,4,4,4,4,4,14}, {7,2,2,2,18,18,12},
+        {17,18,20,24,20,18,17}, {16,16,16,16,16,16,31}, {17,27,21,21,17,17,17}, {17,25,21,19,17,17,17}, {14,17,17,17,17,17,14},
+        {30,17,17,30,16,16,16}, {14,17,17,17,21,18,13}, {30,17,17,30,20,18,17}, {15,16,16,14,1,1,30}, {31,4,4,4,4,4,4},
+        {17,17,17,17,17,17,14}, {17,17,17,17,17,10,4}, {17,17,17,21,21,21,10}, {17,17,10,4,10,17,17}, {17,17,10,4,4,4,4},
+        {31,1,2,4,8,16,31},
+    };
+
+    if (c >= '0' && c <= '9')
+        return digits[c - '0'][row];
+    if (c >= 'a' && c <= 'z')
+        c = (char)(c - 'a' + 'A');
+    if (c >= 'A' && c <= 'Z')
+        return letters[c - 'A'][row];
+    return 0;
+}
+
+static void draw_text(Framebuffer *fb, const char *text, int x, int y, int scale, uint8_t gray)
+{
+    for (const char *p = text; *p; p++, x += 6 * scale) {
+        if (*p == ' ')
+            continue;
+        for (int row = 0; row < 7; row++) {
+            uint8_t bits = glyph_rows(*p, row);
+            for (int col = 0; col < 5; col++) {
+                if (bits & (1u << (4 - col)))
+                    fill_rect(fb, (RectI){x + col * scale, y + row * scale, scale, scale}, gray);
+            }
+        }
+    }
+}
+
+static int text_width(const char *text, int scale)
+{
+    return (int)strlen(text) * 6 * scale;
+}
+
+static void add_button(KindleLayout *layout, const char *label, RectI rect, uint32_t mask)
+{
+    if (layout->buttonCount < MAX_UI_BUTTONS)
+        layout->buttons[layout->buttonCount++] = (KindleButton){ label, rect, mask };
+}
+
+static KindleLayout make_layout(int width, int height)
+{
+    KindleLayout layout;
+    memset(&layout, 0, sizeof(layout));
+
+    int margin = width / 24;
+    if (margin < 24)
+        margin = 24;
+
+    int exitHeight = width / 22;
+    if (exitHeight < 64)
+        exitHeight = 64;
+    int exitWidth = width / 4;
+    if (exitWidth < 180)
+        exitWidth = 180;
+    int exitY = margin / 2;
+    if (exitY < 8)
+        exitY = 8;
+
+    int controlsHeight = height / 3;
+    if (controlsHeight < 360)
+        controlsHeight = 360;
+
+    layout.statusScale = exitHeight >= 70 ? 3 : 2;
+    int statusHeight = 7 * layout.statusScale + margin / 3;
+
+    int maxScreenHeight = height - controlsHeight - exitY - exitHeight - statusHeight - margin;
+    if (maxScreenHeight < DISPLAY_HEIGHT)
+        maxScreenHeight = height - margin * 2;
+
+    layout.screen.width = width;
+    layout.screen.height = layout.screen.width * DISPLAY_HEIGHT / DISPLAY_WIDTH;
+    if (layout.screen.height > maxScreenHeight) {
+        layout.screen.height = maxScreenHeight;
+        layout.screen.width = layout.screen.height * DISPLAY_WIDTH / DISPLAY_HEIGHT;
+    }
+    if (layout.screen.width < DISPLAY_WIDTH) {
+        layout.screen.width = DISPLAY_WIDTH;
+        layout.screen.height = DISPLAY_HEIGHT;
+    }
+    layout.screen.x = (width - layout.screen.width) / 2;
+    layout.screen.y = exitY + exitHeight;
+
+    layout.status = (RectI){0, layout.screen.y + layout.screen.height, width, statusHeight};
+
+    add_button(&layout, "EXIT", (RectI){(width - exitWidth) / 2, exitY, exitWidth, exitHeight}, BUTTON_EXIT);
+
+    int speedWidth = (width - exitWidth) / 2 - margin * 3 / 2;
+    if (speedWidth > exitWidth)
+        speedWidth = exitWidth;
+    add_button(&layout, "MAX SPEED", (RectI){width - margin - speedWidth, exitY, speedWidth, exitHeight}, BUTTON_SPEED);
+
+    int lrGap = margin / 2;
+    int lrHeight = exitHeight;
+    int lrWidth = (layout.screen.width - lrGap) / 2;
+    int lrY = layout.status.y + layout.status.height;
+    add_button(&layout, "L", (RectI){layout.screen.x, lrY, lrWidth, lrHeight}, BUTTON_L);
+    add_button(&layout, "R", (RectI){layout.screen.x + lrWidth + lrGap, lrY, lrWidth, lrHeight}, BUTTON_R);
+
+    int bottomMargin = margin / 2;
+    if (bottomMargin < 24)
+        bottomMargin = 24;
+    int bottomButtonHeight = exitHeight;
+    int bottomGap = margin / 2;
+    int controlsTop = lrY + lrHeight + margin / 2;
+    int available = height - bottomMargin - controlsTop;
+    int unit = (available - bottomButtonHeight - bottomGap) / 3;
+    if (unit > width / 7)
+        unit = width / 7;
+    if (unit < 48)
+        unit = 48;
+    int pad = unit / 12;
+    int button = unit - pad;
+    int controlBlockHeight = unit * 3 + bottomGap + bottomButtonHeight;
+    int y = controlsTop + (available - controlBlockHeight) / 2;
+    if (y < controlsTop)
+        y = controlsTop;
+
+    int dpadX = margin;
+    add_button(&layout, "UP", (RectI){dpadX + unit, y, button, button}, BUTTON_UP);
+    add_button(&layout, "LEFT", (RectI){dpadX, y + unit, button, button}, BUTTON_LEFT);
+    add_button(&layout, "RIGHT", (RectI){dpadX + unit * 2, y + unit, button, button}, BUTTON_RIGHT);
+    add_button(&layout, "DOWN", (RectI){dpadX + unit, y + unit * 2, button, button}, BUTTON_DOWN);
+
+    int faceX = width - margin - unit * 3;
+    int faceButton = button + unit / 4;
+    add_button(&layout, "B", (RectI){faceX, y + unit, faceButton, faceButton}, BUTTON_B);
+    add_button(&layout, "A", (RectI){faceX + unit * 3 / 2, y + unit / 2, faceButton, faceButton}, BUTTON_A);
+
+    int bottomY = y + unit * 3 + bottomGap;
+    int bottomButtonWidth = unit * 2;
+    int bottomX = (width - bottomButtonWidth * 2 - bottomGap) / 2;
+    add_button(&layout, "SELECT", (RectI){bottomX, bottomY, bottomButtonWidth, bottomButtonHeight}, BUTTON_SELECT);
+    add_button(&layout, "START", (RectI){bottomX + bottomButtonWidth + bottomGap, bottomY, bottomButtonWidth, bottomButtonHeight}, BUTTON_START);
+
+    return layout;
+}
+
+static bool contains(RectI rect, int x, int y)
+{
+    return x >= rect.x && y >= rect.y && x < rect.x + rect.width && y < rect.y + rect.height;
+}
+
+static BattleShortcutLayout make_battle_shortcuts(NativeEngine *engine, const KindleLayout *base, int width, int height)
+{
+    BattleShortcutLayout layout;
+    uint32_t count = native_engine_battle_shortcut_count(engine);
+    int margin = width / 24;
+    int gap = margin / 3;
+    int columns = 2;
+    int buttonWidth = (width - margin * 2 - gap) / columns;
+    RectI exitButton = base->buttons[0].rect;
+    int backWidth = exitButton.width;
+    int leftSpace = exitButton.x - margin;
+    int rightSpace = width - exitButton.x - exitButton.width - margin;
+    int backX;
+
+    if (leftSpace >= backWidth) {
+        backX = margin;
+    } else if (rightSpace >= backWidth) {
+        backX = width - margin - backWidth;
+    } else if (leftSpace >= rightSpace) {
+        backWidth = leftSpace;
+        backX = margin;
+    } else {
+        backWidth = rightSpace;
+        backX = width - margin - backWidth;
+    }
+
+    memset(&layout, 0, sizeof(layout));
+    layout.back = (RectI){backX, exitButton.y, backWidth, exitButton.height};
+    layout.pressedIndex = -1;
+
+    int controlsTop = base->status.y + base->status.height;
+    int controlsBottom = height - margin / 2;
+    int totalRows = (int)((count + columns - 1) / columns);
+    int buttonHeight = totalRows ? (controlsBottom - controlsTop - (totalRows - 1) * gap) / totalRows : 0;
+    int maxButtonHeight = width / 9;
+    int y;
+
+    if (buttonHeight > maxButtonHeight)
+        buttonHeight = maxButtonHeight;
+    y = controlsTop + (controlsBottom - controlsTop - totalRows * buttonHeight - (totalRows - 1) * gap) / 2;
+
+    if (count > MAX_BATTLE_SHORTCUTS)
+        count = MAX_BATTLE_SHORTCUTS;
+    for (uint32_t i = 0; i < count; i++) {
+        BattleShortcut *shortcut = &layout.buttons[layout.count];
+        const char *label = native_engine_battle_shortcut_label(engine, i);
+        int row = (int)(i / columns);
+        int column = (int)(i % columns);
+
+        if (!label)
+            continue;
+        shortcut->index = i;
+        shortcut->type = native_engine_battle_shortcut_type(engine, i);
+        snprintf(shortcut->label, sizeof(shortcut->label), "%s", label);
+        shortcut->rect = (RectI){margin + column * (buttonWidth + gap), y + row * (buttonHeight + gap), buttonWidth, buttonHeight};
+        layout.count++;
+    }
+    layout.signature = 2166136261u ^ (uint32_t)layout.count;
+    for (size_t i = 0; i < layout.count; i++) {
+        const BattleShortcut *shortcut = &layout.buttons[i];
+
+        layout.signature ^= shortcut->type;
+        layout.signature *= 16777619u;
+        for (const char *p = shortcut->label; *p; p++) {
+            layout.signature ^= (uint8_t)*p;
+            layout.signature *= 16777619u;
+        }
+    }
+    return layout;
+}
+
+static int touch_battle_shortcut(const BattleShortcutLayout *layout, int x, int y, bool down)
+{
+    if (!down)
+        return -1;
+    for (size_t i = 0; i < layout->count; i++) {
+        if (contains(layout->buttons[i].rect, x, y))
+            return (int)i;
+    }
+    return -1;
+}
+
+static uint32_t touch_buttons(const KindleLayout *layout, int x, int y, bool down, bool shortcutsVisible)
+{
+    if (!down)
+        return 0;
+
+    uint32_t held = 0;
+    for (size_t i = 0; i < layout->buttonCount; i++) {
+        if (shortcutsVisible && !(layout->buttons[i].mask & FRONTEND_BUTTONS))
+            continue;
+        if (contains(layout->buttons[i].rect, x, y))
+            held |= layout->buttons[i].mask;
+    }
+    return held;
+}
+
+static void draw_labeled_button(Framebuffer *fb, const char *label, RectI rect, bool down)
+{
+    fill_rect(fb, rect, down ? 120 : 224);
+    draw_rect_outline(fb, rect, 3, 24);
+
+    int scale = rect.height >= 70 ? 3 : 2;
+    int width = text_width(label, scale);
+    int x = rect.x + (rect.width - width) / 2;
+    int y = rect.y + (rect.height - 7 * scale) / 2;
+    draw_text(fb, label, x, y, scale, 16);
+}
+
+static void draw_button(Framebuffer *fb, const KindleButton *button, uint32_t held)
+{
+    draw_labeled_button(fb, button->label, button->rect, (held & button->mask) != 0);
+}
+
+static void draw_game(Framebuffer *fb, const KindleLayout *layout, const uint8_t *rgba)
+{
+    fill_rect(fb, (RectI){0, 0, fb->width, fb->height}, 255);
+
+    for (int sy = 0; sy < DISPLAY_HEIGHT; sy++) {
+        for (int sx = 0; sx < DISPLAY_WIDTH; sx++) {
+            uint8_t gray = rgba_to_gray(rgba + ((sy * DISPLAY_WIDTH + sx) * 4));
+            int x0 = layout->screen.x + sx * layout->screen.width / DISPLAY_WIDTH;
+            int x1 = layout->screen.x + (sx + 1) * layout->screen.width / DISPLAY_WIDTH;
+            int y0 = layout->screen.y + sy * layout->screen.height / DISPLAY_HEIGHT;
+            int y1 = layout->screen.y + (sy + 1) * layout->screen.height / DISPLAY_HEIGHT;
+            fill_rect(fb, (RectI){x0, y0, x1 - x0, y1 - y0}, gray);
+        }
+    }
+}
+
+static void draw_ui(Framebuffer *fb, const KindleLayout *layout, const BattleShortcutLayout *shortcuts, uint32_t held, int internalFps, int displayFps)
+{
+    char fpsText[64];
+    snprintf(fpsText, sizeof(fpsText), "INTERNAL FPS %d   DISPLAY FPS %d", internalFps, displayFps);
+    draw_text(fb,
+              fpsText,
+              layout->status.x + (layout->status.width - text_width(fpsText, layout->statusScale)) / 2,
+              layout->status.y + (layout->status.height - 7 * layout->statusScale) / 2,
+              layout->statusScale,
+              16);
+
+    for (size_t i = 0; i < layout->buttonCount; i++) {
+        if (shortcuts->count != 0 && !(layout->buttons[i].mask & FRONTEND_BUTTONS))
+            continue;
+        draw_button(fb, &layout->buttons[i], held);
+    }
+    if (shortcuts->count != 0)
+        draw_labeled_button(fb, "BACK", shortcuts->back, (held & BUTTON_B) != 0);
+    for (size_t i = 0; i < shortcuts->count; i++) {
+        const BattleShortcut *shortcut = &shortcuts->buttons[i];
+        char label[17];
+        snprintf(label, sizeof(label), "%s%s", shortcut->type == BATTLE_SHORTCUT_PARTY ? "GO " : "", shortcut->label);
+        draw_labeled_button(fb, label, shortcut->rect, shortcuts->pressedIndex == (int)i);
+    }
+}
+
+static void set_abs_range(InputDevice *device, int code, int *minValue, int *maxValue)
+{
+    struct input_absinfo info;
+    if (ioctl(device->fd, EVIOCGABS(code), &info) == 0 && info.maximum > info.minimum) {
+        *minValue = info.minimum;
+        *maxValue = info.maximum;
+    }
+}
+
+static bool open_input_device(InputDevice *device, const char *path)
+{
+    memset(device, 0, sizeof(*device));
+    device->fd = open(path, O_RDONLY | O_NONBLOCK);
+    if (device->fd < 0)
+        return false;
+
+    device->minX = 0;
+    device->minY = 0;
+    device->maxX = 4095;
+    device->maxY = 4095;
+    set_abs_range(device, ABS_MT_POSITION_X, &device->minX, &device->maxX);
+    set_abs_range(device, ABS_X, &device->minX, &device->maxX);
+    set_abs_range(device, ABS_MT_POSITION_Y, &device->minY, &device->maxY);
+    set_abs_range(device, ABS_Y, &device->minY, &device->maxY);
+
+    int grab = 1;
+    if (ioctl(device->fd, EVIOCGRAB, &grab) == 0) {
+        device->grabbed = true;
+    } else {
+        fprintf(stderr, "warning: EVIOCGRAB %s failed: %s; touches may pass through to Kindle UI\n", path, strerror(errno));
+    }
+
+    return true;
+}
+
+static int scale_abs(int value, int minValue, int maxValue, int outSize)
+{
+    if (maxValue <= minValue)
+        return value;
+
+    if (value < minValue)
+        value = minValue;
+    if (value > maxValue)
+        value = maxValue;
+    return (int)(((int64_t)(value - minValue) * (outSize - 1)) / (maxValue - minValue));
+}
+
+static uint32_t key_mask(uint16_t code)
+{
+    switch (code) {
+    case KEY_Z: return BUTTON_A;
+    case KEY_X: return BUTTON_B;
+    case KEY_ENTER: return BUTTON_START;
+    case KEY_RIGHTSHIFT:
+    case KEY_LEFTSHIFT: return BUTTON_SELECT;
+    case KEY_RIGHT: return BUTTON_RIGHT;
+    case KEY_LEFT: return BUTTON_LEFT;
+    case KEY_UP: return BUTTON_UP;
+    case KEY_DOWN: return BUTTON_DOWN;
+    case KEY_S: return BUTTON_R;
+    case KEY_A: return BUTTON_L;
+    default: return 0;
+    }
+}
+
+static void poll_input(InputDevice *devices, int deviceCount, int fbWidth, int fbHeight)
+{
+    for (int i = 0; i < deviceCount; i++) {
+        struct input_event event;
+        while (read(devices[i].fd, &event, sizeof(event)) == sizeof(event)) {
+            if (event.type == EV_KEY) {
+                if (event.code == BTN_TOUCH) {
+                    devices[i].down = event.value != 0;
+                } else {
+                    uint32_t mask = key_mask(event.code);
+                    if (mask) {
+                        if (event.value)
+                            devices[i].keyHeld |= mask;
+                        else
+                            devices[i].keyHeld &= ~mask;
+                    }
+                }
+            } else if (event.type == EV_ABS) {
+                if (event.code == ABS_MT_TRACKING_ID)
+                    devices[i].down = event.value >= 0;
+                else if (event.code == ABS_MT_POSITION_X || event.code == ABS_X)
+                    devices[i].x = scale_abs(event.value, devices[i].minX, devices[i].maxX, fbWidth);
+                else if (event.code == ABS_MT_POSITION_Y || event.code == ABS_Y)
+                    devices[i].y = scale_abs(event.value, devices[i].minY, devices[i].maxY, fbHeight);
+            }
+        }
+    }
+}
+
+static uint32_t input_buttons(InputDevice *devices, int deviceCount, const KindleLayout *layout, const BattleShortcutLayout *shortcuts, int *shortcutPressed, bool *backPressed)
+{
+    uint32_t held = 0;
+    *shortcutPressed = -1;
+    *backPressed = false;
+    for (int i = 0; i < deviceCount; i++) {
+        held |= devices[i].keyHeld;
+        held |= touch_buttons(layout, devices[i].x, devices[i].y, devices[i].down, shortcuts->count != 0);
+        if (shortcuts->count != 0 && devices[i].down && contains(shortcuts->back, devices[i].x, devices[i].y))
+            *backPressed = true;
+        if (*shortcutPressed < 0)
+            *shortcutPressed = touch_battle_shortcut(shortcuts, devices[i].x, devices[i].y, devices[i].down);
+    }
+    return held;
+}
+
+static int open_inputs(InputDevice *devices, int maxDevices, const char *requested)
+{
+    if (requested) {
+        if (open_input_device(&devices[0], requested))
+            return 1;
+        fprintf(stderr, "warning: open %s: %s\n", requested, strerror(errno));
+        return 0;
+    }
+
+    int count = 0;
+    for (int i = 0; i < 16 && count < maxDevices; i++) {
+        char path[64];
+        snprintf(path, sizeof(path), "/dev/input/event%d", i);
+        if (open_input_device(&devices[count], path))
+            count++;
+    }
+    return count;
+}
+
+static void close_inputs(InputDevice *devices, int deviceCount)
+{
+    for (int i = 0; i < deviceCount; i++) {
+        if (devices[i].fd >= 0) {
+            if (devices[i].grabbed) {
+                int grab = 0;
+                (void)ioctl(devices[i].fd, EVIOCGRAB, &grab);
+            }
+            close(devices[i].fd);
+        }
+    }
+}
+
+#endif
+
+#if defined(__linux__)
+int main(int argc, char **argv)
+{
+    const char *fbPath = DEFAULT_FB_PATH;
+    const char *inputPath = NULL;
+    const char *savePath = DEFAULT_SAVE_PATH;
+    int frameLimit = 0;
+    double displayFps = DEFAULT_KINDLE_DISPLAY_FPS;
+
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--fb") == 0 && i + 1 < argc) {
+            fbPath = argv[++i];
+        } else if (strcmp(argv[i], "--input") == 0 && i + 1 < argc) {
+            inputPath = argv[++i];
+        } else if (strcmp(argv[i], "--save") == 0 && i + 1 < argc) {
+            savePath = argv[++i];
+        } else if (strcmp(argv[i], "--frames") == 0 && i + 1 < argc) {
+            frameLimit = atoi(argv[++i]);
+        } else if (strcmp(argv[i], "--display-fps") == 0 && i + 1 < argc) {
+            displayFps = strtod(argv[++i], NULL);
+            if (displayFps <= 0.0)
+                displayFps = DEFAULT_KINDLE_DISPLAY_FPS;
+        }
+    }
+
+    signal(SIGINT, handle_signal);
+    signal(SIGTERM, handle_signal);
+
+    Framebuffer fb;
+    if (!open_framebuffer(&fb, fbPath))
+        return 1;
+
+    InputDevice inputs[MAX_INPUT_DEVICES];
+    int inputCount = open_inputs(inputs, MAX_INPUT_DEVICES, inputPath);
+    if (inputCount == 0)
+        fprintf(stderr, "warning: no input devices opened; use --input /dev/input/eventN if touch is unavailable\n");
+
+    NativeEngine *engine = native_engine_create();
+    if (!engine) {
+        fprintf(stderr, "could not create native engine\n");
+        close_inputs(inputs, inputCount);
+        close_framebuffer(&fb);
+        return 1;
+    }
+    uint32_t lastSaveHash = native_engine_load_flash(engine, savePath);
+    native_engine_boot(engine);
+
+    KindleLayout layout = make_layout(fb.width, fb.height);
+    BattleShortcutLayout shortcuts = make_battle_shortcuts(engine, &layout, fb.width, fb.height);
+    bool shortcutsDismissed = false;
+    uint32_t dismissedShortcutSignature = 0;
+    int previousShortcut = -1;
+    double lastFrameTime = monotonic_seconds();
+    double frameAccumulator = 0.0;
+    double displayInterval = 1.0 / displayFps;
+    double nextDisplay = lastFrameTime;
+    double lastFpsTime = lastFrameTime;
+    double lastSaveCheck = lastFrameTime;
+    int internalFramesThisSecond = 0;
+    int displayFramesThisSecond = 0;
+    int internalFps = 0;
+    int measuredDisplayFps = 0;
+    bool unbounded = false;
+    bool speedWasHeld = false;
+    uint32_t frame = 0;
+
+    while (!gQuit) {
+        double now = monotonic_seconds();
+        double elapsed = now - lastFrameTime;
+        lastFrameTime = now;
+        frameAccumulator += elapsed * 60.0;
+
+        poll_input(inputs, inputCount, fb.width, fb.height);
+        shortcuts = make_battle_shortcuts(engine, &layout, fb.width, fb.height);
+        if (shortcutsDismissed) {
+            if (shortcuts.signature == dismissedShortcutSignature)
+                shortcuts.count = 0;
+            else {
+                shortcutsDismissed = false;
+                previousShortcut = -1;
+            }
+        }
+        int shortcutPressed;
+        bool backPressed;
+        uint32_t held = input_buttons(inputs, inputCount, &layout, &shortcuts, &shortcutPressed, &backPressed);
+        if (backPressed) {
+            shortcutsDismissed = true;
+            dismissedShortcutSignature = shortcuts.signature;
+            shortcuts.count = 0;
+            shortcutPressed = -1;
+            previousShortcut = -1;
+        }
+        shortcuts.pressedIndex = shortcutPressed;
+        if (shortcutPressed >= 0 && shortcutPressed != previousShortcut)
+            native_engine_battle_shortcut_select(engine, shortcuts.buttons[shortcutPressed].index);
+        previousShortcut = shortcutPressed;
+        if (held & BUTTON_EXIT)
+            gQuit = 1;
+        bool speedHeld = (held & BUTTON_SPEED) != 0;
+        if (speedHeld && !speedWasHeld)
+            unbounded = !unbounded;
+        speedWasHeld = speedHeld;
+        native_engine_set_keys(engine, held);
+
+        uint32_t framesBefore = frame;
+        if (unbounded) {
+            // Check time every 16 frames, but enforce the frame limit on every frame.
+            double sliceEnd = now + INPUT_POLL_SECONDS;
+            do {
+                native_engine_run_frame(engine);
+                frame++;
+            } while ((frameLimit == 0 || frame < (uint32_t)frameLimit)
+                     && (((frame - framesBefore) & 15) != 0 || monotonic_seconds() < sliceEnd));
+            frameAccumulator = 0.0;
+        } else {
+            int framesToRun = (int)frameAccumulator;
+            if (framesToRun > 8)
+                framesToRun = 8;
+            if (frameLimit > 0 && frame + (uint32_t)framesToRun > (uint32_t)frameLimit)
+                framesToRun = (int)((uint32_t)frameLimit - frame);
+            frameAccumulator -= framesToRun;
+
+            for (int i = 0; i < framesToRun; i++) {
+                native_engine_run_frame(engine);
+                frame++;
+            }
+        }
+        internalFramesThisSecond += (int)(frame - framesBefore);
+
+        now = monotonic_seconds();
+        double fpsElapsed = now - lastFpsTime;
+        if (fpsElapsed >= 1.0) {
+            internalFps = (int)round(internalFramesThisSecond / fpsElapsed);
+            measuredDisplayFps = (int)round(displayFramesThisSecond / fpsElapsed);
+            internalFramesThisSecond = 0;
+            displayFramesThisSecond = 0;
+            lastFpsTime = now;
+        }
+
+        if (now >= nextDisplay || frameLimit > 0) {
+            native_engine_render(engine);
+            const uint8_t *display = native_engine_display_buffer(engine);
+            draw_game(&fb, &layout, display);
+            draw_ui(&fb, &layout, &shortcuts, held | (unbounded ? BUTTON_SPEED : 0), internalFps, measuredDisplayFps);
+            refresh_framebuffer(&fb, (RectI){0, 0, fb.width, fb.height}, false);
+            displayFramesThisSecond++;
+            nextDisplay = now + displayInterval;
+        }
+
+        // Checked on wall time: a per-frame cadence would hash flash constantly at unbounded speed.
+        if (now - lastSaveCheck >= SAVE_FLUSH_SECONDS) {
+            lastSaveHash = native_engine_save_flash_if_changed(engine, savePath, lastSaveHash, false);
+            lastSaveCheck = now;
+        }
+        if (frameLimit > 0 && frame >= (uint32_t)frameLimit)
+            break;
+
+        double sleepFor = nextDisplay - monotonic_seconds();
+        if (!unbounded && sleepFor > 0.002)
+            sleep_seconds(sleepFor < INPUT_POLL_SECONDS ? sleepFor : INPUT_POLL_SECONDS);
+    }
+
+    lastSaveHash = native_engine_save_flash_if_changed(engine, savePath, lastSaveHash, true);
+    (void)lastSaveHash;
+    native_engine_destroy(engine);
+    close_inputs(inputs, inputCount);
+    close_framebuffer(&fb);
+    return 0;
+}
+#else
+int main(void)
+{
+    fprintf(stderr, "pokeemerald Kindle frontend requires Linux fbdev/input at runtime. Cross-compile this target for Kindle Scribe Linux.\n");
+    return 1;
+}
+#endif

@@ -12,6 +12,7 @@
 #include "contest.h"
 #include "data.h"
 #include "decompress.h"
+#include "dma3.h"
 #include "easy_chat.h"
 #include "event_data.h"
 #include "evolution_scene.h"
@@ -63,6 +64,9 @@
 #include "trade.h"
 #include "union_room.h"
 #include "window.h"
+#if WASM
+#include "wasm_battle_shortcuts.h"
+#endif
 #include "constants/battle.h"
 #include "constants/battle_frontier.h"
 #include "constants/field_effects.h"
@@ -312,6 +316,7 @@ static void TryGiveItemOrMailToSelectedMon(u8);
 static void SwitchSelectedMons(u8);
 static void TryEnterMonForMinigame(u8, u8);
 static void Task_TryCreateSelectionWindow(u8);
+static bool8 CreateSelectionWindow(u8);
 static void FinishTwoMonAction(u8);
 static void CancelParticipationPrompt(u8);
 static bool8 DisplayCancelChooseMonYesNo(u8);
@@ -739,6 +744,10 @@ static bool8 AllocPartyMenuBgGfx(void)
         sPartyMenuInternal->data[0]++;
         break;
     case 1:
+#if WASM
+        if (IsDma3ManagerBusyWithBgCopy())
+            ProcessDma3Requests();
+#endif
         if (!IsDma3ManagerBusyWithBgCopy())
         {
             LZDecompressWram(gPartyMenuBg_Tilemap, sPartyBgTilemapBuffer);
@@ -1233,7 +1242,12 @@ static void Task_ClosePartyMenuAndSetCB2(u8 taskId)
     if (!gPaletteFade.active)
     {
         if (gPartyMenu.menuType == PARTY_MENU_TYPE_IN_BATTLE)
+        {
             UpdatePartyToFieldOrder();
+#if WASM
+            WasmBattleShortcutClearParty();
+#endif
+        }
 
         if (sPartyMenuInternal->exitCallback != NULL)
             SetMainCallback2(sPartyMenuInternal->exitCallback);
@@ -1261,6 +1275,20 @@ void Task_HandleChooseMonInput(u8 taskId)
     if (!gPaletteFade.active && MenuHelpers_ShouldWaitForLinkRecv() != TRUE)
     {
         s8 *slotPtr = GetCurrentPartySlotPtr();
+#if WASM
+        u8 shortcutSlot;
+
+        if (gPartyMenu.menuType == PARTY_MENU_TYPE_IN_BATTLE && WasmBattleShortcutTakeParty(&shortcutSlot))
+        {
+            gPartyMenu.slotId = shortcutSlot;
+            if (CreateSelectionWindow(taskId))
+            {
+                gTasks[taskId].data[0] = 0xFF;
+                CursorCb_SendMon(taskId);
+            }
+            return;
+        }
+#endif
 
         switch (PartyMenuButtonHandler(slotPtr))
         {

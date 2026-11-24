@@ -236,6 +236,9 @@ static const u8 sUnusedData[] = {0x00, 0xFF, 0xFE, 0xFF, 0x00};
 
 bool8 IsWirelessAdapterConnected(void)
 {
+#if WASM
+    return FALSE;
+#else
     SetWirelessCommType1();
     InitRFUAPI();
     if (rfu_LMAN_REQBN_softReset_and_checkID() == RFU_ID)
@@ -248,6 +251,7 @@ bool8 IsWirelessAdapterConnected(void)
     CloseLink();
     RestoreSerialTimer3IntrHandlers();
     return FALSE;
+#endif
 }
 
 void Task_DestroySelf(u8 taskId)
@@ -2087,8 +2091,18 @@ static void DequeueRecvCmds(u16 (*recvCmds)[CMD_LENGTH])
 
 // link_intr.c
 
+#if WASM
+void WasmLinkVSync(void);
+#endif
+
 void LinkVSync(void)
 {
+#if WASM
+    // No serial port in the browser: src/wasm_link.c carries the cable's
+    // blocks over the internet instead.
+    WasmLinkVSync();
+    return;
+#endif
     if (gLink.isMaster)
     {
         switch (gLink.state)

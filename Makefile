@@ -15,6 +15,23 @@ MODERN      ?= 0
 # Compares the ROM to a checksum of the original - only makes sense using when non-modern
 COMPARE     ?= 0
 
+# Clang 18 builds a wasm that runs but draws a black screen, so prefer a newer
+# versioned LLVM (Ubuntu's clang-20/lld-20 packages) before the plain `clang`.
+WASM_CC ?= $(shell { command -v /opt/homebrew/opt/llvm/bin/clang || command -v /usr/local/opt/llvm/bin/clang || command -v clang-21 || command -v clang-20 || command -v clang; })
+WASM_LD ?= $(shell { command -v wasm-ld-21 || command -v wasm-ld-20 || command -v wasm-ld || find "$$HOME/.rustup/toolchains" -path '*/gcc-ld/wasm-ld' -type f 2>/dev/null | head -n1; })
+NATIVE_CC ?= $(shell { command -v clang || command -v cc; })
+include tools/native/performance.mk
+KINDLE_CC ?= zig cc
+KINDLE_CFLAGS ?= -target arm-linux-musleabihf -mcpu=cortex_a7 -O2 -DNDEBUG -static
+KINDLE_LDFLAGS ?=
+ifeq ($(KINDLE_BUILD),1)
+NATIVE_CC := $(KINDLE_CC)
+NATIVE_CFLAGS := $(KINDLE_CFLAGS)
+NATIVE_LDFLAGS := $(KINDLE_LDFLAGS)
+endif
+RAYLIB_CFLAGS ?= $(shell pkg-config --cflags raylib 2>/dev/null)
+RAYLIB_LIBS ?= $(shell pkg-config --libs raylib 2>/dev/null)
+
 ifeq (modern,$(MAKECMDGOALS))
   MODERN := 1
 endif
@@ -71,6 +88,19 @@ ROM_NAME := $(FILE_NAME).gba
 OBJ_DIR_NAME := $(BUILD_DIR)/emerald
 MODERN_ROM_NAME := $(FILE_NAME)_modern.gba
 MODERN_OBJ_DIR_NAME := $(BUILD_DIR)/modern
+WASM_BUILD_DIR := $(BUILD_DIR)/wasm
+WASM_OBJ_DIR := $(WASM_BUILD_DIR)/obj
+WASM := $(WASM_BUILD_DIR)/$(FILE_NAME).wasm
+WASM_SOUND_HEADER := $(WASM_BUILD_DIR)/wasm_sound.h
+NATIVE_BUILD_DIR := $(BUILD_DIR)/native$(if $(filter 1,$(KINDLE_BUILD)),/kindle)
+NATIVE_ENGINE_H := tools/native/native_engine.h
+NATIVE_ENGINE_O := $(NATIVE_BUILD_DIR)/native_engine.o
+NATIVE_RAYLIB_MAIN_O := $(NATIVE_BUILD_DIR)/raylib_main.o
+NATIVE_RAYLIB := $(NATIVE_BUILD_DIR)/pokeemerald-native
+NATIVE_BENCH_O := $(NATIVE_BUILD_DIR)/bench_main.o
+NATIVE_BENCH := $(NATIVE_BUILD_DIR)/pokeemerald-bench
+KINDLE_FRONTEND_O := $(NATIVE_BUILD_DIR)/kindle_main.o
+NATIVE_KINDLE := $(BUILD_DIR)/native/pokeemerald-kindle
 ASSETS_DIR_NAME := $(BUILD_DIR)/assets
 
 ELF_NAME := $(ROM_NAME:.gba=.elf)
@@ -159,8 +189,8 @@ MAKEFLAGS += --no-print-directory
 # Delete files that weren't built properly
 .DELETE_ON_ERROR:
 
-RULES_NO_SCAN += libagbsyscall clean clean-assets tidy tidymodern tidynonmodern generated clean-generated
-.PHONY: all rom modern compare
+RULES_NO_SCAN += libagbsyscall clean clean-assets tidy tidymodern tidynonmodern generated clean-generated wasm-assets wasm-text clean-wasm clean-native serve-wasm
+.PHONY: all rom modern compare wasm wasm-assets native-raylib native-bench native-kindle clean-wasm clean-native serve-wasm wrangler-site
 .PHONY: $(RULES_NO_SCAN)
 
 infoshell = $(foreach line, $(shell $1 | sed "s/ /__SPACE__/g"), $(info $(subst __SPACE__, ,$(line))))
@@ -169,6 +199,12 @@ infoshell = $(foreach line, $(shell $1 | sed "s/ /__SPACE__/g"), $(info $(subst 
 NODEP ?= 0
 # Check if we need to pre-build tools and generate assets based on the chosen rule.
 SETUP_PREREQS ?= 1
+# Disable dependency scanning for the normal GBA objects when only the wasm build needs C sources.
+ifneq (,$(filter wasm native-raylib native-bench native-kindle native-test native-pgo,$(MAKECMDGOALS)))
+  NODEP := 1
+  SETUP_PREREQS := 1
+endif
+
 # Disable dependency scanning for rules that don't need it.
 ifneq (,$(MAKECMDGOALS))
   ifeq (,$(filter-out $(RULES_NO_SCAN),$(MAKECMDGOALS)))
@@ -197,6 +233,16 @@ endif
 C_SRCS_IN := $(wildcard $(C_SUBDIR)/*.c $(C_SUBDIR)/*/*.c $(C_SUBDIR)/*/*/*.c)
 C_SRCS := $(foreach src,$(C_SRCS_IN),$(if $(findstring .inc.c,$(src)),,$(src)))
 C_OBJS := $(patsubst $(C_SUBDIR)/%.c,$(C_BUILDDIR)/%.o,$(C_SRCS))
+WASM_C_OBJS := $(patsubst $(C_SUBDIR)/%.c,$(WASM_OBJ_DIR)/%.o,$(C_SRCS))
+WASM_DATA_ASM_SRCS := \
+	$(DATA_ASM_SUBDIR)/maps.s \
+	$(DATA_ASM_SUBDIR)/map_events.s \
+	$(DATA_ASM_SUBDIR)/event_scripts.s \
+	$(DATA_ASM_SUBDIR)/battle_scripts_1.s \
+	$(DATA_ASM_SUBDIR)/battle_scripts_2.s \
+	$(DATA_ASM_SUBDIR)/battle_ai_scripts.s \
+	$(DATA_ASM_SUBDIR)/battle_anim_scripts.s
+WASM_DATA_OBJS := $(patsubst $(DATA_ASM_SUBDIR)/%.s,$(WASM_OBJ_DIR)/%.o,$(WASM_DATA_ASM_SRCS))
 
 C_ASM_SRCS := $(wildcard $(C_SUBDIR)/*.s $(C_SUBDIR)/*/*.s $(C_SUBDIR)/*/*/*.s)
 C_ASM_OBJS := $(patsubst $(C_SUBDIR)/%.s,$(C_BUILDDIR)/%.o,$(C_ASM_SRCS))
@@ -225,6 +271,89 @@ rom: $(ROM)
 ifeq ($(COMPARE),1)
 	@$(SHA1) rom.sha1
 endif
+
+wasm: generated wasm-assets $(WASM)
+
+native-raylib: $(NATIVE_RAYLIB)
+
+native-bench: $(NATIVE_BENCH)
+
+ifeq ($(KINDLE_BUILD),1)
+native-kindle: $(NATIVE_KINDLE)
+else
+native-kindle:
+	$(MAKE) native-kindle KINDLE_BUILD=1
+endif
+
+wasm-assets: $(GFX)
+	uv run python tools/generate_wasm_assets.py
+
+$(WASM_SOUND_HEADER): tools/generate_wasm_sound.py sound/song_table.inc sound/songs/midi/midi.cfg $(MID_SRCS)
+	@mkdir -p $(dir $@)
+	uv run python tools/generate_wasm_sound.py $@
+
+$(WASM_C_OBJS): | generated wasm-assets
+
+# Sound data (songs, instruments, samples, cries) is assembled with the GBA
+# assembler and linked on its own at a fixed address, then loaded into the
+# wasm memory at that address by web/app.js. The C code finds the tables it
+# needs through the addresses in wasm_sound_syms.h.
+WASM_SOUND_LD := tools/wasm_sound.ld
+WASM_SOUND_DATA_OBJ := $(WASM_BUILD_DIR)/sound/sound_data.o
+WASM_SOUND_ELF := $(WASM_BUILD_DIR)/sound.elf
+WASM_SOUND_BIN := $(WASM_BUILD_DIR)/sound.bin
+WASM_SOUND_SYMS := $(WASM_BUILD_DIR)/wasm_sound_syms.h
+WASM_SOUND_SAMPLES := $(filter %.bin,$(shell grep -ho '\.incbin "[^"]*"' sound/*.inc sound/voicegroups/*.inc 2>/dev/null | sed 's/.incbin "//;s/"//' | sort -u))
+
+$(WASM_SOUND_DATA_OBJ): data/wasm/sound_data.s $(WASM_SOUND_SAMPLES) | generated
+	@mkdir -p $(dir $@)
+	$(PREPROC) $< charmap.txt | $(CPP) $(INCLUDE_SCANINC_ARGS) - | $(PREPROC) -ie $< charmap.txt | $(AS) $(ASFLAGS) -o $@
+
+$(WASM_SOUND_ELF): $(WASM_SOUND_LD) $(WASM_SOUND_DATA_OBJ) $(MID_OBJS)
+	$(LD) -T $(WASM_SOUND_LD) -o $@ $(WASM_SOUND_DATA_OBJ) $(MID_OBJS)
+
+$(WASM_SOUND_BIN): $(WASM_SOUND_ELF)
+	$(OBJCOPY) -O binary $< $@
+
+# Listed here, after WASM_SOUND_BIN is defined, so the name isn't empty.
+wasm: $(WASM_SOUND_BIN)
+
+$(WASM_SOUND_SYMS): $(WASM_SOUND_ELF) tools/wasm_sound_syms.py
+	python3 tools/wasm_sound_syms.py $(PREFIX)nm $< $@
+
+$(WASM_OBJ_DIR)/m4a.o $(WASM_OBJ_DIR)/m4a_tables.o $(WASM_OBJ_DIR)/sound.o $(WASM_OBJ_DIR)/wasm_audio.o: $(WASM_SOUND_SYMS)
+
+$(WASM): Makefile $(WASM_C_OBJS) $(WASM_DATA_OBJS)
+	@test -n "$(WASM_LD)" || { echo "wasm-ld not found; set WASM_LD=/path/to/wasm-ld"; exit 1; }
+	$(WASM_LD) $(WASM_LDFLAGS) --no-entry --allow-undefined --initial-memory=268435456 --max-memory=268435456 --export=AgbMain --export=WasmRunFrame --export-all -o $@ $(filter %.o,$^)
+
+$(WASM_OBJ_DIR)/sprite.o: Makefile
+$(WASM_OBJ_DIR)/sprite.o: WASM_OPT_FLAGS := -O3
+$(WASM_OBJ_DIR)/task.o: Makefile
+$(WASM_OBJ_DIR)/task.o: WASM_OPT_FLAGS := -O3
+$(WASM_OBJ_DIR)/tileset_anims.o: Makefile
+$(WASM_OBJ_DIR)/tileset_anims.o: WASM_OPT_FLAGS := -O3
+
+$(WASM_OBJ_DIR)/%.o: $(C_SUBDIR)/%.c
+	@mkdir -p $(dir $@)
+	$(WASM_CC) --target=wasm32-unknown-unknown -DMODERN=1 -DWASM=1 -I $(WASM_BUILD_DIR) -I include/wasm -I include -iquote include -E $< | $(PREPROC) -i -g $(ASSETS_DIR_NAME) $< charmap.txt | $(WASM_CC) --target=wasm32-unknown-unknown -x c $(WASM_OPT_FLAGS) -Wno-incompatible-library-redeclaration -Wno-unknown-attributes -Wno-ignored-attributes -Wno-parentheses -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -Wno-builtin-requires-header -Wno-gnu-alignof-expression -Wno-unknown-escape-sequence -Wno-excess-initializers -c - -o $@
+
+$(WASM_OBJ_DIR)/%.o: $(DATA_ASM_SUBDIR)/%.s tools/wasm_asm_data.py | generated
+	@mkdir -p $(dir $@) $(WASM_BUILD_DIR)
+	uv run python tools/wasm_asm_data.py $< $(WASM_BUILD_DIR)/$*.wasm.s
+	$(WASM_CC) --target=wasm32-unknown-unknown -c $(WASM_BUILD_DIR)/$*.wasm.s -o $@
+
+clean-wasm:
+	rm -rf $(WASM_BUILD_DIR)
+
+clean-native:
+	rm -rf $(NATIVE_BUILD_DIR)
+
+serve-wasm: $(WASM)
+	node web/server.mjs
+
+wrangler-site: wasm
+	node tools/build_wrangler_site.mjs
 
 syms: $(SYM)
 
@@ -255,6 +384,14 @@ include graphics_file_rules.mk
 include map_data_rules.mk
 include json_data_rules.mk
 include audio_rules.mk
+ifneq (,$(filter native-% $(BUILD_DIR)/native%,$(MAKECMDGOALS)))
+include tools/native/build.mk
+$(NATIVE_BUILD_DIR)/data/maps.o: $(LAYOUTS_DIR)/layouts.inc $(LAYOUTS_DIR)/layouts_table.inc $(MAPS_DIR)/headers.inc $(MAPS_DIR)/groups.inc $(MAPS_DIR)/connections.inc $(MAP_CONNECTIONS) $(MAP_HEADERS)
+$(NATIVE_BUILD_DIR)/data/map_events.o: $(MAPS_DIR)/events.inc $(MAP_EVENTS)
+endif
+
+$(WASM_OBJ_DIR)/maps.o: $(DATA_ASM_SUBDIR)/maps.s $(LAYOUTS_DIR)/layouts.inc $(LAYOUTS_DIR)/layouts_table.inc $(MAPS_DIR)/headers.inc $(MAPS_DIR)/groups.inc $(MAPS_DIR)/connections.inc $(MAP_CONNECTIONS) $(MAP_HEADERS)
+$(WASM_OBJ_DIR)/map_events.o: $(DATA_ASM_SUBDIR)/map_events.s $(MAPS_DIR)/events.inc $(MAP_EVENTS)
 
 # NOTE: Tools must have been built prior (FIXME)
 # so you can't really call this rule directly
@@ -274,6 +411,13 @@ generated: $(AUTO_GEN_TARGETS)
 %.gbapal: %.png  ; $(GFX) $< $@
 %.lz:     %      ; $(GFX) $< $@
 %.rl:     %      ; $(GFX) $< $@
+
+$(ASSETS_DIR_NAME)/%.png.1bpp: %.png  ; @mkdir -p $(dir $@); $(GFX) $< $@
+$(ASSETS_DIR_NAME)/%.png.4bpp: %.png  ; @mkdir -p $(dir $@); $(GFX) $< $@
+$(ASSETS_DIR_NAME)/%.png.8bpp: %.png  ; @mkdir -p $(dir $@); $(GFX) $< $@
+$(ASSETS_DIR_NAME)/%.png.gbapal: %.png; @mkdir -p $(dir $@); $(GFX) $< $@
+$(ASSETS_DIR_NAME)/%.pal.gbapal: %.pal; @mkdir -p $(dir $@); $(GFX) $< $@
+$(ASSETS_DIR_NAME)/%: %               ; @mkdir -p $(dir $@); cp $< $@
 
 clean-generated:
 	@rm -f $(AUTO_GEN_TARGETS)

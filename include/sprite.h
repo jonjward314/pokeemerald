@@ -263,6 +263,21 @@ extern s16 gSpriteCoordOffsetY;
 extern struct OamMatrix gOamMatrices[OAM_MATRIX_COUNT];
 extern bool8 gAffineAnimsDisabled;
 
+#if WASM
+// BuildOamBuffer only compares the matrices with the last loaded ones when
+// something may have written them. Outside sprite.c every use of the array
+// name counts as a write, so writers need no changes.
+extern bool8 gOamMatricesModified;
+
+static inline struct OamMatrix (*WasmModifyOamMatrices(void))[OAM_MATRIX_COUNT]
+{
+    gOamMatricesModified = TRUE;
+    return &gOamMatrices;
+}
+
+#define gOamMatrices (*WasmModifyOamMatrices())
+#endif
+
 void ResetSpriteData(void);
 void AnimateSprites(void);
 void BuildOamBuffer(void);
@@ -277,6 +292,9 @@ void SetOamMatrix(u8 matrixNum, u16 a, u16 b, u16 c, u16 d);
 void CalcCenterToCornerVec(struct Sprite *sprite, u8 shape, u8 size, u8 affineMode);
 void SpriteCallbackDummy(struct Sprite *sprite);
 void ProcessSpriteCopyRequests(void);
+#if WASM
+void WasmSetSpriteActive(u8 spriteId, bool8 active);
+#endif
 void RequestSpriteCopy(const u8 *src, u8 *dest, u16 size);
 void FreeSpriteTiles(struct Sprite *sprite);
 void FreeSpritePalette(struct Sprite *sprite);

@@ -6560,7 +6560,28 @@ const union {
         .FLASH = TRUE,
     } },
 
-    [SPECIES_OLD_UNOWN_B] = { .learnset = {
+    [SPECIES_OBSIDILLO] = { .learnset = {
+        .TOXIC = TRUE,
+        .HIDDEN_POWER = TRUE,
+        .SUNNY_DAY = TRUE,
+        .PROTECT = TRUE,
+        .FRUSTRATION = TRUE,
+        .IRON_TAIL = TRUE,
+        .EARTHQUAKE = TRUE,
+        .RETURN = TRUE,
+        .DIG = TRUE,
+        .DOUBLE_TEAM = TRUE,
+        .FLAMETHROWER = TRUE,
+        .SANDSTORM = TRUE,
+        .FIRE_BLAST = TRUE,
+        .ROCK_TOMB = TRUE,
+        .FACADE = TRUE,
+        .SECRET_POWER = TRUE,
+        .REST = TRUE,
+        .ATTRACT = TRUE,
+        .OVERHEAT = TRUE,
+        .STRENGTH = TRUE,
+        .ROCK_SMASH = TRUE,
     } },
 
     [SPECIES_OLD_UNOWN_C] = { .learnset = {

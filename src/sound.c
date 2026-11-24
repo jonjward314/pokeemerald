@@ -25,8 +25,14 @@ static u16 sFanfareCounter;
 
 COMMON_DATA bool8 gDisableMusic = 0;
 
+#if WASM
+#include "wasm_sound_syms.h"
+#define gCryTable ((struct ToneData *)WASM_SOUND_gCryTable)
+#define gCryTable_Reverse ((struct ToneData *)WASM_SOUND_gCryTable_Reverse)
+#else
 extern struct ToneData gCryTable[];
 extern struct ToneData gCryTable_Reverse[];
+#endif
 
 static void Task_Fanfare(u8 taskId);
 static void CreateFanfareTask(void);

@@ -4428,8 +4428,15 @@ bool16 HasAllMons(void)
             return FALSE;
     }
 
-    // -2 excludes Jirachi and Deoxys
-    for (i = JOHTO_DEX_COUNT; i < NATIONAL_DEX_COUNT - 2; i++)
+    // Excludes Jirachi and Deoxys
+    for (i = JOHTO_DEX_COUNT; i < NATIONAL_DEX_JIRACHI - 1; i++)
+    {
+        if (!GetSetPokedexFlag(i + 1, FLAG_GET_CAUGHT))
+            return FALSE;
+    }
+
+    // New species added after Deoxys
+    for (i = NATIONAL_DEX_DEOXYS; i < NATIONAL_DEX_COUNT; i++)
     {
         if (!GetSetPokedexFlag(i + 1, FLAG_GET_CAUGHT))
             return FALSE;

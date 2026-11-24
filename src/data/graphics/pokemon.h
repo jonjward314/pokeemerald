@@ -187,6 +187,13 @@ const u32 gMonShinyPalette_Sandshrew[] = INCGFX_U32("graphics/pokemon/sandshrew/
 const u8 gMonIcon_Sandshrew[] = INCGFX_U8("graphics/pokemon/sandshrew/icon.png", ".4bpp");
 const u8 gMonFootprint_Sandshrew[] = INCGFX_U8("graphics/pokemon/sandshrew/footprint.png", ".1bpp");
 
+const u32 gMonStillFrontPic_Obsidillo[] = INCGFX_U32("graphics/pokemon/obsidillo/front.png", ".4bpp.lz");
+const u32 gMonPalette_Obsidillo[] = INCGFX_U32("graphics/pokemon/obsidillo/normal.pal", ".gbapal.lz");
+const u32 gMonBackPic_Obsidillo[] = INCGFX_U32("graphics/pokemon/obsidillo/back.png", ".4bpp.lz");
+const u32 gMonShinyPalette_Obsidillo[] = INCGFX_U32("graphics/pokemon/obsidillo/shiny.pal", ".gbapal.lz");
+const u8 gMonIcon_Obsidillo[] = INCGFX_U8("graphics/pokemon/obsidillo/icon.png", ".4bpp");
+const u8 gMonFootprint_Obsidillo[] = INCGFX_U8("graphics/pokemon/obsidillo/footprint.png", ".1bpp");
+
 const u32 gMonStillFrontPic_Sandslash[] = INCGFX_U32("graphics/pokemon/sandslash/front.png", ".4bpp.lz");
 const u32 gMonPalette_Sandslash[] = INCGFX_U32("graphics/pokemon/sandslash/normal.pal", ".gbapal.lz");
 const u32 gMonBackPic_Sandslash[] = INCGFX_U32("graphics/pokemon/sandslash/back.png", ".4bpp.lz");

@@ -4643,4 +4643,16 @@ const struct PokedexEntry gPokedexEntries[] =
         .trainerScale = 290,
         .trainerOffset = 2,
     },
+
+    [NATIONAL_DEX_OBSIDILLO] =
+    {
+        .categoryName = _("GLASS SHELL"),
+        .height = 5,
+        .weight = 185,
+        .description = gObsidilloPokedexText,
+        .pokemonScale = 412,
+        .pokemonOffset = 18,
+        .trainerScale = 256,
+        .trainerOffset = 0,
+    },
 };

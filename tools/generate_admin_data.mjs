@@ -14,8 +14,8 @@ for (const [, name, value] of (await readFile('include/constants/species.h', 'ut
 const species = [];
 for (const [, name, text] of (await readFile('src/data/text/species_names.h', 'utf8')).matchAll(/\[(SPECIES_\w+)\] = _\("([^"]*)"\)/g)) {
   const id = speciesConsts.get(name);
-  // Skip the empty slot, the unused Unown placeholders (252-276) and Egg.
-  if (!id || (id >= 252 && id <= 276) || name === 'SPECIES_EGG') continue;
+  // Skip the empty slot, the unused Unown placeholders (named "?") and Egg.
+  if (!id || text === '?' || name === 'SPECIES_EGG') continue;
   species.push({ id, name: titleCase(text) });
 }
 species.sort((a, b) => a.name.localeCompare(b.name));

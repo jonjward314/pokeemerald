@@ -2028,7 +2028,7 @@ static const struct BardSoundTemplate sBardSoundTemplates_Pokemon[NUM_SPECIES][M
         NULL_BARD_SOUND,
         NULL_BARD_SOUND,
     },
-    [SPECIES_OLD_UNOWN_C] = {
+    [SPECIES_ZEROID] = {
         NULL_BARD_SOUND,
         NULL_BARD_SOUND,
         NULL_BARD_SOUND,

@@ -255,7 +255,7 @@
 #define SPECIES_CELEBI 251
 
 #define SPECIES_OBSIDILLO 252 // New species: reuses the first unused "old Unown" slot
-#define SPECIES_OLD_UNOWN_C 253
+#define SPECIES_ZEROID 253 // New species: reuses the second unused "old Unown" slot
 #define SPECIES_OLD_UNOWN_D 254
 #define SPECIES_OLD_UNOWN_E 255
 #define SPECIES_OLD_UNOWN_F 256

@@ -194,6 +194,13 @@ const u32 gMonShinyPalette_Obsidillo[] = INCGFX_U32("graphics/pokemon/obsidillo/
 const u8 gMonIcon_Obsidillo[] = INCGFX_U8("graphics/pokemon/obsidillo/icon.png", ".4bpp");
 const u8 gMonFootprint_Obsidillo[] = INCGFX_U8("graphics/pokemon/obsidillo/footprint.png", ".1bpp");
 
+const u32 gMonStillFrontPic_Zeroid[] = INCGFX_U32("graphics/pokemon/zeroid/front.png", ".4bpp.lz");
+const u32 gMonPalette_Zeroid[] = INCGFX_U32("graphics/pokemon/zeroid/normal.pal", ".gbapal.lz");
+const u32 gMonBackPic_Zeroid[] = INCGFX_U32("graphics/pokemon/zeroid/back.png", ".4bpp.lz");
+const u32 gMonShinyPalette_Zeroid[] = INCGFX_U32("graphics/pokemon/zeroid/shiny.pal", ".gbapal.lz");
+const u8 gMonIcon_Zeroid[] = INCGFX_U8("graphics/pokemon/zeroid/icon.png", ".4bpp");
+const u8 gMonFootprint_Zeroid[] = INCGFX_U8("graphics/pokemon/zeroid/footprint.png", ".1bpp");
+
 const u32 gMonStillFrontPic_Sandslash[] = INCGFX_U32("graphics/pokemon/sandslash/front.png", ".4bpp.lz");
 const u32 gMonPalette_Sandslash[] = INCGFX_U32("graphics/pokemon/sandslash/normal.pal", ".gbapal.lz");
 const u32 gMonBackPic_Sandslash[] = INCGFX_U32("graphics/pokemon/sandslash/back.png", ".4bpp.lz");

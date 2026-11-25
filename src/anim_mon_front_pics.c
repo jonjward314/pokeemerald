@@ -30,6 +30,7 @@ const u32 gMonFrontPic_Pikachu[] = INCGFX_U32("graphics/pokemon/pikachu/anim_fro
 const u32 gMonFrontPic_Raichu[] = INCGFX_U32("graphics/pokemon/raichu/anim_front.png", ".4bpp.lz");
 const u32 gMonFrontPic_Sandshrew[] = INCGFX_U32("graphics/pokemon/sandshrew/anim_front.png", ".4bpp.lz");
 const u32 gMonFrontPic_Obsidillo[] = INCGFX_U32("graphics/pokemon/obsidillo/anim_front.png", ".4bpp.lz");
+const u32 gMonFrontPic_Zeroid[] = INCGFX_U32("graphics/pokemon/zeroid/anim_front.png", ".4bpp.lz");
 const u32 gMonFrontPic_Sandslash[] = INCGFX_U32("graphics/pokemon/sandslash/anim_front.png", ".4bpp.lz");
 const u32 gMonFrontPic_NidoranF[] = INCGFX_U32("graphics/pokemon/nidoran_f/anim_front.png", ".4bpp.lz");
 const u32 gMonFrontPic_Nidorina[] = INCGFX_U32("graphics/pokemon/nidorina/anim_front.png", ".4bpp.lz");

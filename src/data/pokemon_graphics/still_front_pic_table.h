@@ -255,7 +255,7 @@ const struct CompressedSpriteSheet gMonStillFrontPicTable[] =
     SPECIES_SPRITE(CELEBI,        gMonStillFrontPic_Celebi),
 // Empty slots
     SPECIES_SPRITE(OBSIDILLO,     gMonStillFrontPic_Obsidillo),
-    SPECIES_SPRITE(OLD_UNOWN_C,   gMonStillFrontPic_DoubleQuestionMark),
+    SPECIES_SPRITE(ZEROID,        gMonStillFrontPic_Zeroid),
     SPECIES_SPRITE(OLD_UNOWN_D,   gMonStillFrontPic_DoubleQuestionMark),
     SPECIES_SPRITE(OLD_UNOWN_E,   gMonStillFrontPic_DoubleQuestionMark),
     SPECIES_SPRITE(OLD_UNOWN_F,   gMonStillFrontPic_DoubleQuestionMark),

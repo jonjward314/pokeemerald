@@ -6584,7 +6584,28 @@ const union {
         .ROCK_SMASH = TRUE,
     } },
 
-    [SPECIES_OLD_UNOWN_C] = { .learnset = {
+    [SPECIES_ZEROID] = { .learnset = {
+        .FOCUS_PUNCH = TRUE,
+        .TOXIC = TRUE,
+        .BULK_UP = TRUE,
+        .HIDDEN_POWER = TRUE,
+        .PROTECT = TRUE,
+        .FRUSTRATION = TRUE,
+        .IRON_TAIL = TRUE,
+        .THUNDERBOLT = TRUE,
+        .RETURN = TRUE,
+        .BRICK_BREAK = TRUE,
+        .DOUBLE_TEAM = TRUE,
+        .SHOCK_WAVE = TRUE,
+        .AERIAL_ACE = TRUE,
+        .FACADE = TRUE,
+        .SECRET_POWER = TRUE,
+        .REST = TRUE,
+        .STEEL_WING = TRUE,
+        .CUT = TRUE,
+        .STRENGTH = TRUE,
+        .FLASH = TRUE,
+        .ROCK_SMASH = TRUE,
     } },
 
     [SPECIES_OLD_UNOWN_D] = { .learnset = {

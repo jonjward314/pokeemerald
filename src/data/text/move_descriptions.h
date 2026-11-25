@@ -1417,6 +1417,34 @@ static const u8 sPsychoBoostDescription[] = _(
     "Allows a full-power attack,\n"
     "but sharply lowers SP. ATK.");
 
+static const u8 sSaberSlashDescription[] = _(
+    "Slashes with a beam saber.\n"
+    "High critical-hit ratio.");
+
+static const u8 sBusterShotDescription[] = _(
+    "Fires a quick plasma shot\n"
+    "that always strikes first.");
+
+static const u8 sDashStrikeDescription[] = _(
+    "Dashes in at blinding speed\n"
+    "to slash. It never misses.");
+
+static const u8 sSaberComboDescription[] = _(
+    "A 3-hit saber combo. Each\n"
+    "hit is stronger than the last.");
+
+static const u8 sRisingSlashDescription[] = _(
+    "A flaming rising slash.\n"
+    "May leave a burn.");
+
+static const u8 sShieldBoomDescription[] = _(
+    "Throws a spinning shield\n"
+    "that also raises DEFENSE.");
+
+static const u8 sChargeSlashDescription[] = _(
+    "Charges the saber on the 1st\n"
+    "turn and slashes on the 2nd.");
+
 // MOVE_NONE is ignored in this table. Make sure to always subtract 1 before getting the right pointer.
 const u8 *const gMoveDescriptionPointers[MOVES_COUNT - 1] =
 {
@@ -1774,4 +1802,11 @@ const u8 *const gMoveDescriptionPointers[MOVES_COUNT - 1] =
     [MOVE_WATER_PULSE - 1] = sWaterPulseDescription,
     [MOVE_DOOM_DESIRE - 1] = sDoomDesireDescription,
     [MOVE_PSYCHO_BOOST - 1] = sPsychoBoostDescription,
+    [MOVE_SABER_SLASH - 1] = sSaberSlashDescription,
+    [MOVE_BUSTER_SHOT - 1] = sBusterShotDescription,
+    [MOVE_DASH_STRIKE - 1] = sDashStrikeDescription,
+    [MOVE_SABER_COMBO - 1] = sSaberComboDescription,
+    [MOVE_RISING_SLASH - 1] = sRisingSlashDescription,
+    [MOVE_SHIELD_BOOM - 1] = sShieldBoomDescription,
+    [MOVE_CHARGE_SLASH - 1] = sChargeSlashDescription,
 };

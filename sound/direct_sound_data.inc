@@ -1943,6 +1943,10 @@ Cry_Obsidillo::
 	.incbin "sound/direct_sound_samples/cries/obsidillo.bin"
 
 	.align 2
+Cry_Zeroid::
+	.incbin "sound/direct_sound_samples/cries/zeroid.bin"
+
+	.align 2
 DirectSoundWaveData_register_noise::
 	.incbin "sound/direct_sound_samples/register_noise.bin"
 

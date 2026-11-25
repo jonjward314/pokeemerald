@@ -779,6 +779,9 @@ BattleScript_EffectRazorWind::
 	jumpifstatus2 BS_ATTACKER, STATUS2_MULTIPLETURNS, BattleScript_TwoTurnMovesSecondTurn
 	jumpifword CMP_COMMON_BITS, gHitMarker, HITMARKER_NO_ATTACKSTRING, BattleScript_TwoTurnMovesSecondTurn
 	setbyte sTWOTURN_STRINGID, B_MSG_TURN1_RAZOR_WIND
+	jumpifnotmove MOVE_CHARGE_SLASH, BattleScript_RazorWindCharge
+	setbyte sTWOTURN_STRINGID, B_MSG_TURN1_SKY_ATTACK
+BattleScript_RazorWindCharge::
 	call BattleScriptFirstChargingTurn
 	goto BattleScript_MoveEnd
 
@@ -1397,6 +1400,9 @@ BattleScript_DoTripleKickAttack::
 	accuracycheck BattleScript_TripleKickNoMoreHits, ACC_CURR_MOVE
 	movevaluescleanup
 	addbyte sTRIPLE_KICK_POWER, 10
+	jumpifnotmove MOVE_SABER_COMBO, BattleScript_TripleKickPowerSet
+	addbyte sTRIPLE_KICK_POWER, 10 @ Saber Combo hits for 20, 40, 60
+BattleScript_TripleKickPowerSet::
 	addbyte sMULTIHIT_STRING + 4, 1
 	copyhword gDynamicBasePower, sTRIPLE_KICK_POWER
 	critcalc

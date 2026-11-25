@@ -359,7 +359,7 @@ static const u16 sSpeciesToHoennPokedexNum[NUM_SPECIES - 1] =
     SPECIES_TO_HOENN(HO_OH),
     SPECIES_TO_HOENN(CELEBI),
     SPECIES_TO_HOENN(OBSIDILLO),
-    SPECIES_TO_HOENN(OLD_UNOWN_C),
+    SPECIES_TO_HOENN(ZEROID),
     SPECIES_TO_HOENN(OLD_UNOWN_D),
     SPECIES_TO_HOENN(OLD_UNOWN_E),
     SPECIES_TO_HOENN(OLD_UNOWN_F),
@@ -775,7 +775,7 @@ static const u16 sSpeciesToNationalPokedexNum[NUM_SPECIES - 1] =
     SPECIES_TO_NATIONAL(HO_OH),
     SPECIES_TO_NATIONAL(CELEBI),
     SPECIES_TO_NATIONAL(OBSIDILLO),
-    SPECIES_TO_NATIONAL(OLD_UNOWN_C),
+    SPECIES_TO_NATIONAL(ZEROID),
     SPECIES_TO_NATIONAL(OLD_UNOWN_D),
     SPECIES_TO_NATIONAL(OLD_UNOWN_E),
     SPECIES_TO_NATIONAL(OLD_UNOWN_F),
@@ -1024,6 +1024,7 @@ static const u16 sHoennToNationalOrder[NUM_SPECIES - 1] =
     HOENN_TO_NATIONAL(MAGNETON),
     HOENN_TO_NATIONAL(VOLTORB),
     HOENN_TO_NATIONAL(ELECTRODE),
+    HOENN_TO_NATIONAL(ZEROID),
     HOENN_TO_NATIONAL(VOLBEAT),
     HOENN_TO_NATIONAL(ILLUMISE),
     HOENN_TO_NATIONAL(ODDISH),
@@ -1326,7 +1327,6 @@ static const u16 sHoennToNationalOrder[NUM_SPECIES - 1] =
     HOENN_TO_NATIONAL(LUGIA),
     HOENN_TO_NATIONAL(HO_OH),
     HOENN_TO_NATIONAL(CELEBI),
-    HOENN_TO_NATIONAL(OLD_UNOWN_C),
     HOENN_TO_NATIONAL(OLD_UNOWN_D),
     HOENN_TO_NATIONAL(OLD_UNOWN_E),
     HOENN_TO_NATIONAL(OLD_UNOWN_F),
@@ -1656,6 +1656,7 @@ static const u8 sMonFrontAnimIdsTable[NUM_SPECIES - 1] =
     [SPECIES_HO_OH - 1]       = ANIM_GROW_VIBRATE,
     [SPECIES_CELEBI - 1]      = ANIM_RISING_WOBBLE,
     [SPECIES_OBSIDILLO - 1]   = ANIM_SWING_CONCAVE_FAST_SHORT,
+    [SPECIES_ZEROID - 1]      = ANIM_H_SLIDE_SLOW,
     [SPECIES_TREECKO - 1]     = ANIM_V_SQUISH_AND_BOUNCE,
     [SPECIES_GROVYLE - 1]     = ANIM_V_STRETCH,
     [SPECIES_SCEPTILE - 1]    = ANIM_V_SHAKE,
@@ -5699,13 +5700,16 @@ u16 HoennToNationalOrder(u16 hoennNum)
     return sHoennToNationalOrder[hoennNum - 1];
 }
 
-// Obsidillo's cry is appended after Chimecho's at the end of the cry tables.
+// New species' cries are appended after Chimecho's at the end of the cry tables.
 #define CRY_ID_OBSIDILLO 388
+#define CRY_ID_ZEROID    389
 
 u16 SpeciesToCryId(u16 species)
 {
     if (species == SPECIES_OBSIDILLO - 1)
         return CRY_ID_OBSIDILLO;
+    if (species == SPECIES_ZEROID - 1)
+        return CRY_ID_ZEROID;
 
     if (species <= SPECIES_CELEBI - 1)
         return species;

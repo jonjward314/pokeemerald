@@ -357,7 +357,16 @@
 #define MOVE_DOOM_DESIRE 353
 #define MOVE_PSYCHO_BOOST 354
 
-#define MOVES_COUNT 355
+// New moves for Zeroid
+#define MOVE_SABER_SLASH 355
+#define MOVE_BUSTER_SHOT 356
+#define MOVE_DASH_STRIKE 357
+#define MOVE_SABER_COMBO 358
+#define MOVE_RISING_SLASH 359
+#define MOVE_SHIELD_BOOM 360
+#define MOVE_CHARGE_SLASH 361
+
+#define MOVES_COUNT 362
 
 // Used for checks for moves affected by Disable, Mimic, etc.
 #define MOVE_UNAVAILABLE 0xFFFF

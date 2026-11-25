@@ -2325,3 +2325,9 @@ const u8 gObsidilloPokedexText[] = _(
     "ROUTE 113 and gobbles it up. Its inner\n"
     "fire turns the ash into glass, which\n"
     "grows into the shiny panes on its back.");
+
+const u8 gZeroidPokedexText[] = _(
+    "A mysterious android found sleeping deep\n"
+    "in NEW MAUVILLE. It fights with a beam\n"
+    "saber and buster, and dashes so fast its\n"
+    "long golden hair trails behind it.");
